@@ -20,7 +20,12 @@ import torch
 from torch.utils.data import DataLoader
 from flwr.common import Context
 from flwr.common.typing import NDArrays, Scalar
-from flwr.common.logger import ConsoleHandler, console_handler, FLOWER_LOGGER, LOG_COLORS
+from flwr.common.logger import (
+    ConsoleHandler,
+    console_handler,
+    FLOWER_LOGGER,
+    LOG_COLORS,
+)
 from hydra import compose, initialize
 from omegaconf import DictConfig
 from datasets import load_dataset, Dataset, load_from_disk
@@ -38,7 +43,7 @@ from transformers import (
     BitsAndBytesConfig,
     TrainingArguments,
 )
-from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
+from trl import DataCollatorForCompletionOnlyLM, KTOTrainer, KTOConfig
 from sklearn.metrics import accuracy_score
 
 warnings.filterwarnings("ignore")
@@ -48,7 +53,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 
-def format_string(msg, char_width: int=50) -> str:
+def format_string(msg, char_width: int = 50) -> str:
     return textwrap.fill(msg, char_width, subsequent_indent="\t")
 
 
@@ -56,12 +61,15 @@ def format_string(msg, char_width: int=50) -> str:
 def print_config(config: DictConfig):
     print(OmegaConf.to_yaml(config))
 
+
 ########## console logger with less white spaces #############
-FLOWER_LOGGER.removeHandler(console_handler) # remove default handler
+FLOWER_LOGGER.removeHandler(console_handler)  # remove default handler
+
+
 class ConsoleHandlerV2(ConsoleHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    
+
     def format(self, record: LogRecord) -> str:
         """Format function that adds colors to log level."""
         if self.json:
@@ -76,6 +84,7 @@ class ConsoleHandlerV2(ConsoleHandler):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
+
 # Configure console logger
 console_handlerv2 = ConsoleHandlerV2(
     timestamps=False,
@@ -88,8 +97,9 @@ FLOWER_LOGGER.addHandler(console_handlerv2)
 
 ########## Format dataset ###########
 
+
 def format_dataset(dataset):
-    dataset = dataset.remove_columns(['instruction'])
+    dataset = dataset.remove_columns(["instruction"])
     dataset = dataset.rename_column("output", "response")
     dataset = dataset.rename_column("input", "instruction")
     return dataset
@@ -111,9 +121,12 @@ def get_config(config_name: str):
 ############################# visualize data partitions #######################
 def visualize_partitions(fed_dataset: FederatedDataset):
     _ = fed_dataset.load_partition(0)
-    num_partitions = fed_dataset.partitioners['train'].num_partitions
-    
-    plt.bar(range(num_partitions), [len(fed_dataset.load_partition(i)) for i in range(num_partitions)])
+    num_partitions = fed_dataset.partitioners["train"].num_partitions
+
+    plt.bar(
+        range(num_partitions),
+        [len(fed_dataset.load_partition(i)) for i in range(num_partitions)],
+    )
     plt.xticks(range(num_partitions))
     plt.xlabel("Partition ID")
     plt.ylabel("Number of examples")
@@ -122,30 +135,41 @@ def visualize_partitions(fed_dataset: FederatedDataset):
 
 ############################### Report communication costs #################
 
+
 def compute_communication_costs(config, comm_bw_mbps: float = 20):
     model = get_model(config.model)
 
     trainable, all_parameters = model.get_nb_trainable_parameters()
 
-    total_size = 4*all_parameters/(1024**2)
-    trainable_size = 4*trainable/(1024**2)
+    total_size = 4 * all_parameters / (1024**2)
+    trainable_size = 4 * trainable / (1024**2)
 
-    upload_time_total = total_size/(comm_bw_mbps/8)
-    upload_time_finetune = trainable_size/(comm_bw_mbps/8)
-    
-    print(f"Full model:\n\t{all_parameters/1e6:.3f} M parameters\n\t{total_size:.2f} MB --> upload in {upload_time_total:.2f}s @ {comm_bw_mbps}Mbps")
-    print(f"Finetuned model:\n\t{trainable/1e6:.3f} M parameters\n\t{trainable_size:.2f} MB --> upload in {upload_time_finetune:.2f}s @ {comm_bw_mbps}Mbps")
+    upload_time_total = total_size / (comm_bw_mbps / 8)
+    upload_time_finetune = trainable_size / (comm_bw_mbps / 8)
+
+    print(
+        f"Full model:\n\t{all_parameters/1e6:.3f} M parameters\n\t{total_size:.2f} MB --> upload in {upload_time_total:.2f}s @ {comm_bw_mbps}Mbps"
+    )
+    print(
+        f"Finetuned model:\n\t{trainable/1e6:.3f} M parameters\n\t{trainable_size:.2f} MB --> upload in {upload_time_finetune:.2f}s @ {comm_bw_mbps}Mbps"
+    )
     # print(f"In a {comm_bw_mbps} Mbps channel --> {}")
 
     num_rounds = config.flower.num_rounds
     num_clients_per_round = int(config.flower.num_clients * config.flower.fraction_fit)
-    print(f"Federated Learning setting: "
-          f"\n\tNumber of rounds: {num_rounds}"
-          f"\n\tNumber of clients per round: {num_clients_per_round}")
-    
+    print(
+        f"Federated Learning setting: "
+        f"\n\tNumber of rounds: {num_rounds}"
+        f"\n\tNumber of clients per round: {num_clients_per_round}"
+    )
+
     print(f"-----------------------------------------------")
-    print(f"Total Communication costs (Full model): {2*num_rounds*num_clients_per_round*total_size/1024:.1f} GB")
-    print(f"Total Communication costs (Finetuning): {2*num_rounds*num_clients_per_round*trainable_size} MB")
+    print(
+        f"Total Communication costs (Full model): {2*num_rounds*num_clients_per_round*total_size/1024:.1f} GB"
+    )
+    print(
+        f"Total Communication costs (Finetuning): {2*num_rounds*num_clients_per_round*trainable_size} MB"
+    )
     print(f"Communication savings: {all_parameters/trainable:.1f}x")
 
 
@@ -176,6 +200,8 @@ def get_model(model_cfg: DictConfig):
             quantization_config = BitsAndBytesConfig(load_in_4bit=True)
         elif model_cfg.quantization == 8:
             quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+        elif model_cfg.quantization == None:
+            pass
         else:
             raise ValueError(
                 f"Use 4-bit or 8-bit quantization. You passed: {model_cfg.quantization}/"
@@ -265,16 +291,12 @@ class FlowerClient(
         train_cfg: DictConfig,
         trainset,
         tokenizer,
-        formatting_prompts_func,
-        data_collator,
         save_path,
     ):  # pylint: disable=too-many-arguments
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.train_cfg = train_cfg
-        self.training_argumnets = TrainingArguments(**train_cfg.training_arguments)
+        self.training_argumnets = KTOConfig(**train_cfg.training_arguments)
         self.tokenizer = tokenizer
-        self.formatting_prompts_func = formatting_prompts_func
-        self.data_collator = data_collator
         self.save_path = save_path
 
         # instantiate model
@@ -307,26 +329,24 @@ class FlowerClient(
         evalset = None
         if self.train_cfg.evaluate_split:
             train_test = self.trainset.train_test_split(test_size=0.1, seed=1234)
-            trainset = train_test['train']
-            evalset = train_test['test']
+            trainset = train_test["train"]
+            evalset = train_test["test"]
         else:
             trainset = self.trainset
 
-        trainer = SFTTrainer(
+        trainer = KTOTrainer(
             model=self.model,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
             args=self.training_argumnets,
-            max_seq_length=self.train_cfg.seq_length,
+            # max_seq_length=self.train_cfg.seq_length,
             train_dataset=trainset,
             eval_dataset=evalset,
-            formatting_func=self.formatting_prompts_func,
-            data_collator=self.data_collator,
         )
 
         metrics = {}
         if self.train_cfg.evaluate_split:
             eval_res = trainer.evaluate()
-            metrics['eval_loss'] = eval_res['eval_loss']
+            metrics["eval_loss"] = eval_res["eval_loss"]
             print(eval_res)
 
         # Do local training
@@ -350,10 +370,8 @@ def set_parameters(model, parameters: NDArrays) -> None:
 
 
 def gen_client_fn(
-    fds,
+    datasets,
     tokenizer,
-    formatting_prompts_func,
-    data_collator,
     model_cfg: DictConfig,
     train_cfg: DictConfig,
     save_path: str,
@@ -365,17 +383,12 @@ def gen_client_fn(
 
         # Let's get the partition corresponding to the i-th client
         partition_id = int(context.node_config["partition-id"])
-        client_trainset = fds.load_partition(partition_id, "train")
-        client_trainset = client_trainset.remove_columns(["instruction"])
-        client_trainset = client_trainset.rename_column("input", "instruction")
-        client_trainset = client_trainset.rename_column("output", "response")
+        client_trainset = Dataset.from_list(list(datasets.values())[partition_id])
         return FlowerClient(
             model_cfg,
             train_cfg,
             client_trainset,
             tokenizer,
-            formatting_prompts_func,
-            data_collator,
             save_path,
         ).to_client()
 
@@ -426,17 +439,34 @@ def fit_weighted_average(metrics):
     return {"train_loss": sum(losses) / sum(examples)}
 
 
-
-
-
 ################################ Make bar plots ##########################
-results_offline = {"7b/pretrained": 0.322, "7b/cen_full": 0.660, "7b/cen_10": 0.488, "7b/fl": 0.667}
+results_offline = {
+    "7b/pretrained": 0.322,
+    "7b/cen_full": 0.660,
+    "7b/cen_10": 0.488,
+    "7b/fl": 0.667,
+}
+
 
 def get_label(key: str, compact: bool = False) -> str:
-    label_mapping = {"7b/pretrained": "Pre-trained" if compact else "Pre-trained model",
-                    "7b/cen_10":"Finetuned Cen.\n(10% data)" if compact else "Finetuned model\n(centralized - 10% data)",
-                    "7b/cen_full": "Finetuned Cen.\n(100% data)" if compact else "Finetuned model\n(centralized - 100% data)",
-                    "7b/fl": "Finetuned FL\n(Flower)" if compact else "Finetuned model\n(Flower Federated)"}
+    label_mapping = {
+        "7b/pretrained": "Pre-trained" if compact else "Pre-trained model",
+        "7b/cen_10": (
+            "Finetuned Cen.\n(10% data)"
+            if compact
+            else "Finetuned model\n(centralized - 10% data)"
+        ),
+        "7b/cen_full": (
+            "Finetuned Cen.\n(100% data)"
+            if compact
+            else "Finetuned model\n(centralized - 100% data)"
+        ),
+        "7b/fl": (
+            "Finetuned FL\n(Flower)"
+            if compact
+            else "Finetuned model\n(Flower Federated)"
+        ),
+    }
     return label_mapping[key]
 
 
@@ -449,28 +479,25 @@ def make_plot(axs, data_keys, labels):
     plt.show()
 
 
-def visualize_results(results: List[str], compact: bool=False) -> None:
+def visualize_results(results: List[str], compact: bool = False) -> None:
     _, axs = plt.subplots(figsize=(6, 4))
-    make_plot(
-        axs,
-        results,
-        [get_label(res, compact) for res in results]
-    )
+    make_plot(axs, results, [get_label(res, compact) for res in results])
+
 
 ############################ Evaluation ########################
 # Fixed seed
 torch.manual_seed(2024)
 
 INSTRUCTIONS = {
-    'pubmedqa': {'task': 'mcq', 'partition': 'test', 'instructions': 'pubmedqa'},
+    "pubmedqa": {"task": "mcq", "partition": "test", "instructions": "pubmedqa"},
 }
 
 pubmedqa_instruction = {
-        "system": "As an expert doctor in clinical science and medical knowledge, can you tell me if the following statement is correct? Answer yes, no, or maybe.",
-        "user": "The answer is:",
-        "type": "task-oriented",
-        "source": ""
-    }
+    "system": "As an expert doctor in clinical science and medical knowledge, can you tell me if the following statement is correct? Answer yes, no, or maybe.",
+    "user": "The answer is:",
+    "type": "task-oriented",
+    "source": "",
+}
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -487,8 +514,12 @@ def benchmark_factory(name):
         "pubmedqa": ClosedPubMedQA,
     }
     if name not in factories:
-        raise ValueError("Benchmark {} not found. \
-                         Select one of the following: {}".format(name, list(factories.keys())))
+        raise ValueError(
+            "Benchmark {} not found. \
+                         Select one of the following: {}".format(
+                name, list(factories.keys())
+            )
+        )
     return factories[name](name)
 
 
@@ -526,23 +557,31 @@ class Benchmark:
         Downloads the benchmark data from the HuggingFace hub (for 1st time loading)
         This is specific to each benchmark and must be implemented in the extended class.
         """
-        print(f'Downloading benchmark from HuggingFace hub ({self.hub_name}).')
+        print(f"Downloading benchmark from HuggingFace hub ({self.hub_name}).")
         try:
             if self.subsets is None:
-                load_dataset(self.hub_name,
-                             cache_dir=os.path.join(ROOT_DIR, 'benchmarks', 'datasets'),
-                             download_mode='force_redownload')
+                load_dataset(
+                    self.hub_name,
+                    cache_dir=os.path.join(ROOT_DIR, "benchmarks", "datasets"),
+                    download_mode="force_redownload",
+                )
             else:
                 for subset in self.subsets:
-                    load_dataset(self.hub_name,
-                                 subset,
-                                 cache_dir=os.path.join(ROOT_DIR, 'benchmarks', 'datasets'),
-                                 download_mode='force_redownload')
+                    load_dataset(
+                        self.hub_name,
+                        subset,
+                        cache_dir=os.path.join(ROOT_DIR, "benchmarks", "datasets"),
+                        download_mode="force_redownload",
+                    )
         except:
-            raise ValueError("Default Huggingface loader failed for benchmark {}. \
-                             Try implementing a custom load_from_hub function.".format(self.name))
+            raise ValueError(
+                "Default Huggingface loader failed for benchmark {}. \
+                             Try implementing a custom load_from_hub function.".format(
+                    self.name
+                )
+            )
 
-    def load_data(self, partition='train'):
+    def load_data(self, partition="train"):
         """
         Loads benchmark data from a local directory, or from the HuggingFace hub if not yet downloaded.
         Based on the input partition type, instantiates the respective class attribute.
@@ -550,43 +589,51 @@ class Benchmark:
         :param path: str (optional), the path to the benchmark data.
         :param partition: str, the split of the data: train / test
         """
-        print('='*50 + f'\nLoading data for benchmark {self.name}.\n')
+        print("=" * 50 + f"\nLoading data for benchmark {self.name}.\n")
         if partition not in self.splits:
-            raise ValueError("Please provide a valid partition split: {}".format(self.splits))
+            raise ValueError(
+                "Please provide a valid partition split: {}".format(self.splits)
+            )
         if not os.path.exists(self.path):
             os.makedirs(self.path)
             self.load_from_hub()
         try:
             if self.subsets is None:
-                if partition == 'train':
+                if partition == "train":
                     self.train_data = load_dataset(self.path, split=partition)
-                elif partition in ['test', 'validation']:
+                elif partition in ["test", "validation"]:
                     self.test_data = load_dataset(self.path, split=partition)
             else:
-                if partition == 'train':
-                    self.train_data = aggregate_datasets(self.path, self.subsets, partition=partition)
-                elif partition in ['test', 'validation']:
-                    self.test_data = aggregate_datasets(self.path, self.subsets, partition=partition)
+                if partition == "train":
+                    self.train_data = aggregate_datasets(
+                        self.path, self.subsets, partition=partition
+                    )
+                elif partition in ["test", "validation"]:
+                    self.test_data = aggregate_datasets(
+                        self.path, self.subsets, partition=partition
+                    )
 
         except ValueError as e:
             print(e)
-            raise ValueError("Couldn't load benchmark {} from local path.".format(self.name))
+            raise ValueError(
+                "Couldn't load benchmark {} from local path.".format(self.name)
+            )
 
-    def save_data(self, partition='train'):
+    def save_data(self, partition="train"):
         """
         Saves any preprocessing data partition.
 
         :param data: pd.DataFrame
         :param file_name: str
         """
-        path = os.path.join('benchmarks', 'preprocessing', f"{self.name}_{partition}")
+        path = os.path.join("benchmarks", "preprocessing", f"{self.name}_{partition}")
         print("Saving {} data to the following path: {}".format(self.name, path))
-        if partition == 'train':
+        if partition == "train":
             pd.to_pickle(self.train_data, path)
-        elif partition == 'test':
+        elif partition == "test":
             pd.to_pickle(self.test_data, path)
 
-    def preprocessing(self, partition='train'):
+    def preprocessing(self, partition="train"):
         """
         Applies a custom pre-processing over the partition.
         If instruction is provided, preprends it to the question
@@ -596,26 +643,30 @@ class Benchmark:
         :param partition: str, the split of the data: train / test
         """
         try:
-            if partition == 'train':
+            if partition == "train":
                 self.train_data = self.train_data.map(self.custom_preprocessing)
-            elif partition in ['test', 'validation']:
+            elif partition in ["test", "validation"]:
                 self.test_data = self.test_data.map(self.custom_preprocessing)
             else:
-                raise ValueError("Please provide a valid partition split: train or test")
+                raise ValueError(
+                    "Please provide a valid partition split: train or test"
+                )
         except Exception as e:
             print(e)
-            raise ValueError("Error when pre-processing {} {} data.".format(self.name, partition))
+            raise ValueError(
+                "Error when pre-processing {} {} data.".format(self.name, partition)
+            )
 
     def custom_preprocessing(self):
-            """
-            Wraps a pre-processing function (dict -> dict) specific to the benchmark.
-            Needs to be overriden in the extended class.
+        """
+        Wraps a pre-processing function (dict -> dict) specific to the benchmark.
+        Needs to be overriden in the extended class.
 
-            The return dictionary must contains keys 'prompt' & 'answer' for inference to work.
-            """
-            raise NotImplementedError('Implement custom_preprocessing() in a child class.')
+        The return dictionary must contains keys 'prompt' & 'answer' for inference to work.
+        """
+        raise NotImplementedError("Implement custom_preprocessing() in a child class.")
 
-    def add_instruction(self, instruction=None, cot_column=None, partition='train'):
+    def add_instruction(self, instruction=None, cot_column=None, partition="train"):
         """
         Adds instructions to the data based on the input partition.
 
@@ -623,21 +674,25 @@ class Benchmark:
         :param cot_column: str, the column that has the CoT explanation behind the gold answer.
         :param partition: str, the split of the data: train / test
         """
+
         def _add_instruction(row):
-            row['prompt'] = '{}\n{}\n{}\n'.format(
-                instruction['system'],
-                row['prompt'],
-                instruction['user'])
+            row["prompt"] = "{}\n{}\n{}\n".format(
+                instruction["system"], row["prompt"], instruction["user"]
+            )
             if cot_column:
-                row['gold'] = '{}.\nThe answer is: {} ###'.format(row[cot_column], row['gold'])
+                row["gold"] = "{}.\nThe answer is: {} ###".format(
+                    row[cot_column], row["gold"]
+                )
             return row
 
-        if partition == 'train':
+        if partition == "train":
             self.train_data = self.train_data.map(_add_instruction)
-        elif partition == 'test' or partition == 'validation':
-            self.test_data = self.test_data.map( _add_instruction)
+        elif partition == "test" or partition == "validation":
+            self.test_data = self.test_data.map(_add_instruction)
         else:
-            raise ValueError("Please provide a valid partition split: {}".format(self.splits))
+            raise ValueError(
+                "Please provide a valid partition split: {}".format(self.splits)
+            )
 
     def add_generations(self, data):
         """
@@ -654,53 +709,65 @@ class Benchmark:
         """
         Saves the generations in the respective directory.
         """
-        path = os.path.join(ROOT_DIR, 'benchmarks', 'generations')
+        path = os.path.join(ROOT_DIR, "benchmarks", "generations")
         if not os.path.exists(os.path.dirname(path)):
             os.makedirs(os.path.dirname(path))
         gen_path = os.path.join(path, f"{benchmark_name}-{run_name}.jsonl")
 
         self.generations.to_json(gen_path, orient="records")
-        print("Stored {} generations to the following path: {}".format(self.name, gen_path))
-
+        print(
+            "Stored {} generations to the following path: {}".format(
+                self.name, gen_path
+            )
+        )
 
     def load_generations(self, benchmark_name):
         """
         Loads the generations from the respective directory.
         """
-        path = os.path.join(ROOT_DIR, 'benchmarks', 'generations', f"{self.name}_{benchmark_name}.json")
+        path = os.path.join(
+            ROOT_DIR, "benchmarks", "generations", f"{self.name}_{benchmark_name}.json"
+        )
         if not os.path.exists(path):
-            raise ValueError("No generations found for {} at path: {}. \
-                             Please run inference first.".format(self.name, path))
-        print("Loading {} generations from the following path: {}".format(self.name, path))
+            raise ValueError(
+                "No generations found for {} at path: {}. \
+                             Please run inference first.".format(
+                    self.name, path
+                )
+            )
+        print(
+            "Loading {} generations from the following path: {}".format(self.name, path)
+        )
         self.generations = pd.read_json(path)
 
 
 class ClosedPubMedQA(Benchmark):
-    '''
+    """
     PubMedQA is a novel biomedical question answering (QA) dataset.
     Its task is to answer research biomedical questions with yes/no/maybe using PubMed abstracts.
 
     Huggingface card: https://huggingface.co/datasets/bigbio/pubmed_qa
-    '''
-    def __init__(self, name='pubmedqa') -> None:
+    """
+
+    def __init__(self, name="pubmedqa") -> None:
         super().__init__(name)
         self.hub_name = "bigbio/pubmed_qa"
-        self.dir_name = 'bigbio___pubmed_qa'
-        self.path = os.path.join(ROOT_DIR, 'benchmarks', 'datasets', self.dir_name)
-        self.splits = ['train', 'validation', 'test']
-        self.subsets = ['pubmed_qa_labeled_fold0_source']
+        self.dir_name = "bigbio___pubmed_qa"
+        self.path = os.path.join(ROOT_DIR, "benchmarks", "datasets", self.dir_name)
+        self.splits = ["train", "validation", "test"]
+        self.subsets = ["pubmed_qa_labeled_fold0_source"]
         self.num_options = 3
 
     @staticmethod
     def custom_preprocessing(row):
-        context = '\n'.join(row['CONTEXTS'])
+        context = "\n".join(row["CONTEXTS"])
         row["prompt"] = f"{context}\n{row['QUESTION']}"
-        row["gold"] = row['final_decision']
+        row["gold"] = row["final_decision"]
         row["long_answer"] = row["LONG_ANSWER"]
         return row
 
 
-def aggregate_datasets(path, subsets, partition='train'):
+def aggregate_datasets(path, subsets, partition="train"):
     """
     Takes as input a Huggingface DatasetDict with subset name as key, and Dataset as value.
     Returns a pd.DataFrame with all subsets concatenated.
@@ -711,12 +778,12 @@ def aggregate_datasets(path, subsets, partition='train'):
     dataframes = []
     for subset in subsets:
         subset_data = load_dataset(os.path.join(path, subset), split=partition)
-        subset_df = pd.DataFrame(subset_data.map(lambda x: {'subset': subset, **x}))
+        subset_df = pd.DataFrame(subset_data.map(lambda x: {"subset": subset, **x}))
         dataframes.append(subset_df)
     aggregate_df = pd.concat(dataframes, axis=0)
     aggregate = Dataset.from_pandas(aggregate_df)
-    if '__index_level_0__' in aggregate.column_names:
-        aggregate = aggregate.remove_columns('__index_level_0__')
+    if "__index_level_0__" in aggregate.column_names:
+        aggregate = aggregate.remove_columns("__index_level_0__")
     return aggregate
 
 
@@ -730,7 +797,7 @@ def tokenizer_param(tokenizer, target):
     """
     stop_seq = ["###"]
     stop_seq.append(tokenizer.eos_token)
-    max_new_tokens = len(tokenizer(target[0], add_special_tokens=False)['input_ids'])
+    max_new_tokens = len(tokenizer(target[0], add_special_tokens=False)["input_ids"])
 
     return max_new_tokens, stop_seq
 
@@ -744,35 +811,44 @@ def benchmark_infer(model, tokenizer, data, device):
 
     return: pd.DataFrame, a DataFrame containing the scores for each answer
     """
-    columns_to_save = ['prompt', 'gold']
-    if 'subset' in data.features:
-        columns_to_save.append('subset')
+    columns_to_save = ["prompt", "gold"]
+    if "subset" in data.features:
+        columns_to_save.append("subset")
     predictions = pd.DataFrame(data, columns=data.features)[columns_to_save]
     predictions = predictions.assign(output="Null")
     temperature = 1.0
 
-    inference_data = json.loads(predictions.to_json(orient='records'))
+    inference_data = json.loads(predictions.to_json(orient="records"))
     data_loader = DataLoader(inference_data, batch_size=16, shuffle=False)
 
     batch_counter = 0
     for batch in tqdm(data_loader, total=len(data_loader), position=0, leave=True):
-        prompts = [f"<|im_start|>question\n{prompt}<|im_end|>\n<|im_start|>answer\n" for prompt in batch["prompt"]]
+        prompts = [
+            f"<|im_start|>question\n{prompt}<|im_end|>\n<|im_start|>answer\n"
+            for prompt in batch["prompt"]
+        ]
         if batch_counter == 0:
             print(prompts[0])
 
-        max_new_tokens, stop_seq = tokenizer_param(tokenizer, batch['gold'])
+        max_new_tokens, stop_seq = tokenizer_param(tokenizer, batch["gold"])
 
         outputs = []
         for prompt in prompts:
             input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
-            output_ids = model.generate(inputs=input_ids, max_new_tokens=max_new_tokens, do_sample=False, top_p=1.0,
-                                        temperature=temperature, pad_token_id=tokenizer.eos_token_id)
-            output_ids = output_ids[0][len(input_ids[0]):]
+            output_ids = model.generate(
+                inputs=input_ids,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                top_p=1.0,
+                temperature=temperature,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+            output_ids = output_ids[0][len(input_ids[0]) :]
             output = tokenizer.decode(output_ids, skip_special_tokens=True)
             outputs.append(output)
 
         for prompt, out in zip(batch["prompt"], outputs):
-            predictions.loc[predictions['prompt'] == prompt, 'output'] = out
+            predictions.loc[predictions["prompt"] == prompt, "output"] = out
         batch_counter += 1
 
     return predictions
@@ -787,18 +863,18 @@ def benchmark_preparation(data_obj, partition):
     """
     data_obj.load_data(partition=partition)
     data_obj.preprocessing(partition=partition)
-    prompt_name = INSTRUCTIONS['pubmedqa']['instructions']
+    prompt_name = INSTRUCTIONS["pubmedqa"]["instructions"]
 
     instruction = pubmedqa_instruction
-    print(f'Instruction used for evaluation: \n\t{instruction["system"]}\n\t{instruction["user"]}\n')
+    print(
+        f'Instruction used for evaluation: \n\t{instruction["system"]}\n\t{instruction["user"]}\n'
+    )
 
-    data_obj.add_instruction(
-        instruction=instruction,
-        partition=partition)
+    data_obj.add_instruction(instruction=instruction, partition=partition)
     return prompt_name
 
 
-def inference(base_model_name_path, peft_path=None, run_name='fl', quantization=4):
+def inference(base_model_name_path, peft_path=None, run_name="fl", quantization=4):
     # Load model and tokenizer
     if quantization == 4:
         quantization_config = BitsAndBytesConfig(load_in_4bit=True)
@@ -806,6 +882,8 @@ def inference(base_model_name_path, peft_path=None, run_name='fl', quantization=
     elif quantization == 8:
         quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         torch_dtype = torch.float16
+    elif quantization == None:
+        pass
     else:
         raise ValueError(
             f"Use 4-bit or 8-bit quantization. You passed: {quantization}/"
@@ -815,20 +893,25 @@ def inference(base_model_name_path, peft_path=None, run_name='fl', quantization=
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if device == "cpu":
         quantization_config = None
-        print(f"{quantization} bit quantization is chosen, but a GPU is not found, running on CPU without quantization.")
+        print(
+            f"{quantization} bit quantization is chosen, but a GPU is not found, running on CPU without quantization."
+        )
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model_name_path,
         quantization_config=quantization_config,
-        torch_dtype=torch_dtype)
+        torch_dtype=torch_dtype,
+    )
     if peft_path is not None:
-        model = PeftModel.from_pretrained(model, peft_path, torch_dtype=torch_dtype).to(device)
+        model = PeftModel.from_pretrained(model, peft_path, torch_dtype=torch_dtype).to(
+            device
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(base_model_name_path, use_fast=False)
 
     # Prepare data
-    partition = INSTRUCTIONS['pubmedqa']['partition']
-    data_obj = benchmark_factory('pubmedqa')
+    partition = INSTRUCTIONS["pubmedqa"]["partition"]
+    data_obj = benchmark_factory("pubmedqa")
     benchmark_preparation(data_obj, partition)
 
     # Prediction
@@ -836,13 +919,13 @@ def inference(base_model_name_path, peft_path=None, run_name='fl', quantization=
 
     # Save results
     data_obj.add_generations(data=predictions)
-    data_obj.save_generations(benchmark_name='pubmedqa', run_name=run_name)
-    print(f'{len(predictions)} generations store.')
+    data_obj.save_generations(benchmark_name="pubmedqa", run_name=run_name)
+    print(f"{len(predictions)} generations store.")
 
 
 def load_jsonl(filename):
     data = []
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         for line in f:
             try:
                 data.append(json.loads(line))
@@ -853,19 +936,19 @@ def load_jsonl(filename):
 
 def clean_double_answer(output):
     if "yesyes" in output:
-        output = output.replace('yesyes', 'yes')
+        output = output.replace("yesyes", "yes")
     elif "nono" in output:
-        output = output.replace('nono', 'no')
+        output = output.replace("nono", "no")
     elif "yesno" in output:
-        output = output.replace('yesno', 'yes')
+        output = output.replace("yesno", "yes")
     elif "noyes" in output:
-        output = output.replace('noyes', 'no')
+        output = output.replace("noyes", "no")
     output = clean_answer(output)
     return output
 
 
 def clean_answer(output):
-    output_clean = output.encode('ascii', 'ignore').decode('ascii')
+    output_clean = output.encode("ascii", "ignore").decode("ascii")
     return output_clean
 
 
@@ -888,7 +971,7 @@ def eval(output_full, answer):
     output = re.sub(" +", " ", output)
     output = clean_double_answer(output)
 
-    if output in ['a', 'b', 'c', 'd', 'e', 'yes', 'no']:
+    if output in ["a", "b", "c", "d", "e", "yes", "no"]:
         return output == answer, output, answer
     else:
         return default
@@ -899,10 +982,9 @@ def accuracy_metric(data):
     preds, golds = [], []
     ignored_prompts = []
     for row in data:
-        answer = row['gold'].lower()
-        output = row['output'].lower()
-        correct, pred, gold = eval(
-            output, answer)
+        answer = row["gold"].lower()
+        output = row["output"].lower()
+        correct, pred, gold = eval(output, answer)
 
         preds.append(pred)
         golds.append(gold)
@@ -923,20 +1005,20 @@ def accuracy_metric(data):
         "counted": counter,
         "ignored": ignored_prompts,
         "unable_to_find_answer": error,
-        "total": len(data)
+        "total": len(data),
     }
 
 
 def display(metric_dict, run_name):
     print("====================================")
-    print(f'Report accuracy for {run_name}:')
+    print(f"Report accuracy for {run_name}:")
     print(f'# Accuracy: {metric_dict["accuracy"]}')
 
 
-def evaluate(gen_dir=f'{ROOT_DIR}/benchmarks/generations', run_name='fl'):
+def evaluate(gen_dir=f"{ROOT_DIR}/benchmarks/generations", run_name="fl"):
     # Load data
-    path = f'{gen_dir}/pubmedqa-{run_name}.jsonl'
-    run_name = path.split('/')[-1].split('.')[0]
+    path = f"{gen_dir}/pubmedqa-{run_name}.jsonl"
+    run_name = path.split("/")[-1].split(".")[0]
     data = load_jsonl(path)
 
     # Run evaluation

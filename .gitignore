@@ -1,1 +1,3 @@
 /data/*.json*
+/models
+__pycache__
