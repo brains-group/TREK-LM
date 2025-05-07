@@ -61,7 +61,7 @@ def runTests(dataset):
 
         model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
-        generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
+        generated_ids = model.generate(**model_inputs, max_new_tokens=128)
         generated_ids = [
             output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
@@ -81,7 +81,7 @@ def runTests(dataset):
     return score / len(dataset)
 
 
-with open("./data/KGComp/movieKnowledgeGraphTestDataset.json", "r") as file:
+with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
     print("Performing Real Data Test:")
     print(f"Real Data Score: {runTests(json.load(file))}")
 

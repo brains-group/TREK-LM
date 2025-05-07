@@ -43,7 +43,7 @@ flower:
     num_rounds: 200
     sample_clients: 10
     client_resources:
-      num_cpus: 64
+      num_cpus: 8
       num_gpus: 1.0
     dp:
       noise_mult: 0.02
