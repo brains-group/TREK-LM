@@ -217,11 +217,9 @@ def load_data(args, partition=None):
             os.path.join(args.data, "entity2vec.txt"),
             os.path.join(args.data, "relation2vec.txt"),
         )
-        print("Initialised relations and entities from TransE")
     else:
         entity_embeddings = np.random.randn(len(entity2id), args.embedding_size)
         relation_embeddings = np.random.randn(len(relation2id), args.embedding_size)
-        print("Initialised relations and entities randomly")
 
     corpus = Corpus(
         args,
@@ -568,7 +566,9 @@ def get_evaluate_fn(args, save_every_round, total_round, save_path):
             )
             set_parameters(model, parameters)
 
-            torch.save(model.state_dict(), f"{save_path}/peft_{server_round}")
+            path = f"{save_path}/peft_{server_round}"
+            os.makedirs(path, exist_ok=True)
+            torch.save(model.state_dict(), path)
 
         return 0.0, {}
 
