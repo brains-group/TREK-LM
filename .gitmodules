@@ -1,0 +1,6 @@
+[submodule "KBGAT/relationPrediction"]
+	path = KBGAT/relationPrediction
+	url = https://github.com/deepakn97/relationPrediction.git
+[submodule "HAKE/HAKE"]
+	path = HAKE/HAKE
+	url = https://github.com/MIRALab-USTC/KGE-HAKE.git
