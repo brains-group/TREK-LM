@@ -550,7 +550,13 @@ def get_evaluate_fn(args, save_every_round, total_round, save_path):
         if server_round != 0 and (
             server_round == total_round or server_round % save_every_round == 0
         ):
-            _, entity_embeddings, relation_embeddings = load_data(args)
+            entity_embeddings, relation_embeddings = init_embeddings(
+                os.path.join(args.data, "entity2vec.txt"),
+                os.path.join(args.data, "relation2vec.txt"),
+            )
+            entity_embeddings = torch.FloatTensor(entity_embeddings)
+            relation_embeddings = torch.FloatTensor(relation_embeddings)
+
             # Init model
             model = SpKBGATConvOnly(
                 entity_embeddings,
@@ -566,8 +572,9 @@ def get_evaluate_fn(args, save_every_round, total_round, save_path):
             )
             set_parameters(model, parameters)
 
-            path = f"{save_path}/peft_{server_round}"
+            path = f"{save_path}/peft_{server_round}/"
             os.makedirs(path, exist_ok=True)
+            path += f"trained_{server_round}.pth"
             torch.save(model.state_dict(), path)
 
         return 0.0, {}
