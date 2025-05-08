@@ -20,7 +20,7 @@ train:
   save_every_round: 5
   learning_rate_max: 5e-5
   learning_rate_min: 1e-6
-  seq_length: 1024
+  seq_length: 4096
   padding_side: "left"
   evaluate_split: false
   training_arguments:
