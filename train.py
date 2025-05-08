@@ -20,6 +20,7 @@ cfg = get_config("federated_full")
 parser = argparse.ArgumentParser()
 parser.add_argument("--base_model_path", type=str, default=None)
 parser.add_argument("--num_rounds", type=str, default=None)
+parser.add_argument("--dataset_name", type=str, default=None)
 args = parser.parse_args()
 
 modelFolderName = cfg.model.name
@@ -27,6 +28,8 @@ if args.base_model_path is not None:
     cfg.model.name = args.base_model_path
 if args.num_rounds is not None:
     cfg.flower.num_rounds = int(args.num_rounds)
+if args.dataset_name is not None:
+    cfg.dataset.name = args.dataset_name
 
 print_config(cfg)
 
