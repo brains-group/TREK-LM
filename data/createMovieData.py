@@ -187,8 +187,8 @@ for index in range(len(dataset["conversationId"])):
                         goal = goal[: goal.rfind(" ")]
                     goals.append(goal)
                 else:
-                    badMovies += "- " + movieName + "\n"
-                    badTriples += json.dumps(newTriple) + "\n"
+                    badMovies += movieName + " "
+                    badTriples += json.dumps(newTriple) + " "
 
                 updateUserKG(movieName, questions[movieId], True)
 
@@ -198,7 +198,9 @@ for index in range(len(dataset["conversationId"])):
                         PROMPT_STRING: truncatedPrompt,
                         COMPLETION_STRING: [
                             {
-                                CONTENT_STRING: COMPLETION_FORMAT_STRING.format(
+                                CONTENT_STRING: (
+                                    COMPLETION_FORMAT_STRING if label else "{}\n{}"
+                                ).format(
                                     movies,
                                     triples,
                                 ),
@@ -321,8 +323,8 @@ for user in kgDataset.keys():
                     goal = goal[: goal.rfind(" ")]
                 goals.append(goal)
             else:
-                movies += "- " + userKG[TAIL_STRING][choiceIndex] + "\n"
-                triples += json.dumps(newTriple) + "\n"
+                movies += userKG[TAIL_STRING][choiceIndex] + " "
+                triples += json.dumps(newTriple) + " "
         choiceIndexes.sort(reverse=True)
         for choiceIndex in choiceIndexes:
             if shouldDelete:
@@ -332,7 +334,9 @@ for user in kgDataset.keys():
 
         completion = [
             {
-                CONTENT_STRING: COMPLETION_FORMAT_STRING.format(
+                CONTENT_STRING: (
+                    COMPLETION_FORMAT_STRING if label else "{}\n{}"
+                ).format(
                     movies,
                     triples,
                 ),

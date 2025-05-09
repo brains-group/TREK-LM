@@ -19,19 +19,39 @@ class ModeType(Enum):
 
 
 class DataReader(object):
-    def __init__(self, data_path: str):
-        entity_dict_path = os.path.join(data_path, 'entities.dict')
-        relation_dict_path = os.path.join(data_path, 'relations.dict')
-        train_data_path = os.path.join(data_path, 'train.txt')
-        valid_data_path = os.path.join(data_path, 'valid.txt')
-        test_data_path = os.path.join(data_path, 'test.txt')
+    def __init__(self, data_path: str, partition=None):
+        entity_dict_path = os.path.join(data_path, "entities.dict")
+        relation_dict_path = os.path.join(data_path, "relations.dict")
+        federationNotDone = True
+        if partition is not None and os.path.isdir(
+            os.path.join(data_path, "federated")
+        ):
+            train_data_path = os.path.join(
+                os.path.join(data_path, "federated"), f"train{partition}.txt"
+            )
+            federationNotDone = False
+        else:
+            train_data_path = os.path.join(data_path, "train.txt")
+        valid_data_path = os.path.join(data_path, "valid.txt")
+        test_data_path = os.path.join(data_path, "test.txt")
 
         self.entity_dict = self.read_dict(entity_dict_path)
         self.relation_dict = self.read_dict(relation_dict_path)
 
-        self.train_data = self.read_data(train_data_path, self.entity_dict, self.relation_dict)
-        self.valid_data = self.read_data(valid_data_path, self.entity_dict, self.relation_dict)
-        self.test_data = self.read_data(test_data_path, self.entity_dict, self.relation_dict)
+        self.train_data = self.read_data(
+            train_data_path, self.entity_dict, self.relation_dict
+        )
+        if partition is not None and federationNotDone:
+            partitionSize = int(len(self.train_data) / 20)
+            self.train_data = self.train_data[
+                (partitionSize * partition) : (partitionSize * (partition + 1))
+            ]
+        self.valid_data = self.read_data(
+            valid_data_path, self.entity_dict, self.relation_dict
+        )
+        self.test_data = self.read_data(
+            test_data_path, self.entity_dict, self.relation_dict
+        )
 
     def read_dict(self, dict_path: str):
         """
@@ -40,22 +60,26 @@ class DataReader(object):
         """
 
         element_dict = {}
-        with open(dict_path, 'r') as f:
+        with open(dict_path, "r") as f:
             for line in f:
-                id_, element = line.strip().split('\t')
+                id_, element = line.strip().split("\t")
                 element_dict[element] = int(id_)
 
         return element_dict
 
-    def read_data(self, data_path: str, entity_dict: Dict[str, int], relation_dict: Dict[str, int]):
+    def read_data(
+        self, data_path: str, entity_dict: Dict[str, int], relation_dict: Dict[str, int]
+    ):
         """
         Read train / valid / test data.
         """
         triples = []
-        with open(data_path, 'r') as f:
+        with open(data_path, "r") as f:
             for line in f:
-                head, relation, tail = line.strip().split('\t')
-                triples.append((entity_dict[head], relation_dict[relation], entity_dict[tail]))
+                head, relation, tail = line.strip().split("\t")
+                triples.append(
+                    (entity_dict[head], relation_dict[relation], entity_dict[tail])
+                )
         return triples
 
 
@@ -100,23 +124,23 @@ class TrainDataset(Dataset):
                     neg_triples_tmp,
                     self.tr_map[(tail, rel)],
                     assume_unique=True,
-                    invert=True
+                    invert=True,
                 )
             elif self.batch_type == BatchType.TAIL_BATCH:
                 mask = np.in1d(
                     neg_triples_tmp,
                     self.hr_map[(head, rel)],
                     assume_unique=True,
-                    invert=True
+                    invert=True,
                 )
             else:
-                raise ValueError('Invalid BatchType: {}'.format(self.batch_type))
+                raise ValueError("Invalid BatchType: {}".format(self.batch_type))
 
             neg_triples_tmp = neg_triples_tmp[mask]
             neg_triples.append(neg_triples_tmp)
             neg_size += neg_triples_tmp.size
 
-        neg_triples = np.concatenate(neg_triples)[:self.neg_size]
+        neg_triples = np.concatenate(neg_triples)[: self.neg_size]
 
         pos_triple = torch.LongTensor(pos_triple)
         neg_triples = torch.from_numpy(neg_triples)
@@ -172,7 +196,9 @@ class TrainDataset(Dataset):
 
 class TestDataset(Dataset):
     def __init__(self, data_reader: DataReader, mode: ModeType, batch_type: BatchType):
-        self.triple_set = set(data_reader.train_data + data_reader.valid_data + data_reader.test_data)
+        self.triple_set = set(
+            data_reader.train_data + data_reader.valid_data + data_reader.test_data
+        )
         if mode == ModeType.VALID:
             self.triples = data_reader.valid_data
         elif mode == ModeType.TEST:
@@ -193,15 +219,27 @@ class TestDataset(Dataset):
         head, relation, tail = self.triples[idx]
 
         if self.batch_type == BatchType.HEAD_BATCH:
-            tmp = [(0, rand_head) if (rand_head, relation, tail) not in self.triple_set
-                   else (-1, head) for rand_head in range(self.num_entity)]
+            tmp = [
+                (
+                    (0, rand_head)
+                    if (rand_head, relation, tail) not in self.triple_set
+                    else (-1, head)
+                )
+                for rand_head in range(self.num_entity)
+            ]
             tmp[head] = (0, head)
         elif self.batch_type == BatchType.TAIL_BATCH:
-            tmp = [(0, rand_tail) if (head, relation, rand_tail) not in self.triple_set
-                   else (-1, tail) for rand_tail in range(self.num_entity)]
+            tmp = [
+                (
+                    (0, rand_tail)
+                    if (head, relation, rand_tail) not in self.triple_set
+                    else (-1, tail)
+                )
+                for rand_tail in range(self.num_entity)
+            ]
             tmp[tail] = (0, tail)
         else:
-            raise ValueError('negative batch type {} not supported'.format(self.mode))
+            raise ValueError("negative batch type {} not supported".format(self.mode))
 
         tmp = torch.LongTensor(tmp)
         filter_bias = tmp[:, 0].float()
@@ -236,9 +274,9 @@ class BidirectionalOneShotIterator(object):
 
     @staticmethod
     def one_shot_iterator(dataloader):
-        '''
+        """
         Transform a PyTorch Dataloader into python iterator
-        '''
+        """
         while True:
             for data in dataloader:
                 yield data

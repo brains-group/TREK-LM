@@ -49,6 +49,8 @@ if args.lora_path is not None:
     ).to(device)
 tokenizer = AutoTokenizer.from_pretrained(args.base_model_path, use_fast=False)
 
+hits = [0] * 10
+
 
 def runTests(dataset):
     truePositives = 0
@@ -80,23 +82,28 @@ def runTests(dataset):
         recommendations = re.findall("(?=\n-([^\n]+))", response)
         subResponse = "".join(recommendations)
         falsePositives += len(recommendations)
+        didHit = False
         for goal in dataPoint["goal"]:
             if goal in subResponse:
                 truePositives += 1
                 falsePositives -= 1
+                didHit = True
                 print(f"{goal} found in response.")
             else:
                 falseNegatives += 1
                 print(f"{goal} not found in response.")
+        if didHit:
+            for i in range(len(hits) - 1, len(recommendations) - 2, -1):
+                hits[i] += 1
         print(f"truePositives: {truePositives}")
         print(f"falsePositives: {falsePositives}")
         print(f"falseNegatives: {falseNegatives}")
-    return f"(Precision: {truePositives/(truePositives+falsePositives)}, Recall: {truePositives/(truePositives+falseNegatives)})"
+    return f"(Precision: {truePositives/(truePositives+falsePositives)}, Recall: {truePositives/(truePositives+falseNegatives)}, Hits@: {hits})"
 
 
-with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
-    print("Performing Real Data Test:")
-    print(f"Real Data Score: {runTests(json.load(file))}")
+# with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
+#     print("Performing Real Data Test:")
+#     print(f"Real Data Score: {runTests(json.load(file))}")
 
 with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
     print("Performing Synthetic Data Test:")
