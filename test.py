@@ -93,6 +93,8 @@ def runTests(dataset):
                 falseNegatives += 1
                 print(f"{goal} not found in response.")
         if didHit:
+            if len(hits) < len(recommendations):
+                hits += [hits[-1]] * (len(recommendations) - len(hits))
             for i in range(len(hits) - 1, len(recommendations) - 2, -1):
                 hits[i] += 1
         print(f"truePositives: {truePositives}")
