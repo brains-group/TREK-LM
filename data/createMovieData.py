@@ -362,13 +362,13 @@ for user in kgDataset.keys():
             kgDataset[user].append(newDatapoint)
 
     if len(goodChoices) > 0:
-        for i in range(random.randint(0, len(goodChoices) * 3)):
+        for i in range(random.randint(0, len(goodChoices))):
             generateSyntheticCompletion(goodChoices, True)
     if len(badChoices) > 0:
-        for i in range(random.randint(0, len(badChoices) * 3)):
+        for i in range(random.randint(0, len(badChoices))):
             generateSyntheticCompletion(badChoices, False)
     if len(repChoices) > 0:
-        for i in range(random.randint(0, len(repChoices) * 3)):
+        for i in range(random.randint(0, len(repChoices))):
             generateSyntheticCompletion(repChoices, False, False)
 
 sumDataPoints = 0

@@ -53,12 +53,17 @@ CUDA = torch.cuda.is_available()
 desirable_weight = 1
 undesirable_weight = 1
 if dataset is not None:
-    numDesirable = sum(dataset["label"])*3
-    numUndesirable = (dataset.num_rows - numDesirable/3)*4
+    numDesirable = sum(dataset["label"]) * 3
+    numUndesirable = (dataset.num_rows - numDesirable / 3) * 4
     if numDesirable < numUndesirable:
         desirable_weight = numUndesirable / numDesirable
     else:
         undesirable_weight = numDesirable / numUndesirable
+print(f"numDesirable: {sum(dataset["label"])}")
+print(f"numUndesirable: {dataset.num_rows - sum(dataset["label"])}")
+print(f"desirable_weight: {desirable_weight}")
+print(f"undesirable_weight: {undesirable_weight}")
+
 training_argumnets = KTOConfig(
     **cfg.train.training_arguments,
     output_dir=save_path,
