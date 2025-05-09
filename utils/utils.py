@@ -300,8 +300,9 @@ class FlowerClient(
         if trainset is not None:
             numDesirable = sum(trainset["label"])
             desirable_weight = (trainset.num_rows - numDesirable) / numDesirable
-        train_cfg.training_arguments["desirable_weight"] = desirable_weight
-        self.training_argumnets = KTOConfig(**train_cfg.training_arguments)
+        self.training_argumnets = KTOConfig(
+            **train_cfg.training_arguments, desirable_weight=desirable_weight
+        )
 
         self.tokenizer = tokenizer
         self.save_path = save_path
