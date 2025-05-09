@@ -63,7 +63,7 @@ training_argumnets = KTOConfig(
     **cfg.train.training_arguments,
     output_dir=save_path,
     desirable_weight=desirable_weight,
-    undesirable_weigh=undesirable_weight,
+    undesirable_weight=undesirable_weight,
 )
 
 trainer = KTOTrainer(
