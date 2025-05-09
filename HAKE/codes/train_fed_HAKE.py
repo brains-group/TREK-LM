@@ -78,19 +78,19 @@ def parse_args(args=None):
     )
 
     # fed args
-    args.add_argument(
+    parser.add_argument(
         "--num_rounds",
         type=float,
         default=50,
         help="Dropout probability for convolution layer",
     )
-    args.add_argument(
+    parser.add_argument(
         "--sample_clients",
         type=float,
         default=10,
         help="Dropout probability for convolution layer",
     )
-    args.add_argument(
+    parser.add_argument(
         "--num_clients",
         type=float,
         default=20,
