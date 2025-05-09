@@ -19,7 +19,7 @@ train:
   seq_length: 4096
   padding_side: "left"
   training_arguments:
-    learning_rate: 5e-5
+    learning_rate: 5e-6
     per_device_train_batch_size: 16
     gradient_accumulation_steps: 1
     logging_steps: 10
