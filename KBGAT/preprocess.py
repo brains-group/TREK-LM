@@ -57,7 +57,7 @@ def load_data(
     with open(filename) as f:
         lines = f.readlines()
 
-    if partition is not None:
+    if partition is not None and "federated" not in filename:
         partitionSize = int(len(lines) / partition["numPartitions"])
         partitionIndex = partitionSize * partition["partitionID"]
         lines = lines[partitionIndex : (partitionIndex + partitionSize)]
@@ -105,7 +105,13 @@ def build_data(
     # Adjacency matrix only required for training phase
     # Currenlty creating as unweighted, undirected
     train_triples, train_adjacency_mat, unique_entities_train = load_data(
-        os.path.join(path, "train.txt"),
+        (
+            os.path.join(path, "train.txt")
+            if (not os.path.isdir(os.path.join(path, "federated"))) or partition is None
+            else os.path.join(
+                os.path.join(path, "federated"), f"train{partition["partitionID"]}.txt"
+            )
+        ),
         entity2id,
         relation2id,
         is_unweigted,

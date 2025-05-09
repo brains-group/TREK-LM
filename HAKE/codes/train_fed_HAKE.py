@@ -45,25 +45,25 @@ def parse_args(args=None):
     parser.add_argument("--do_valid", action="store_true")
     parser.add_argument("--do_test", action="store_true")
 
-    parser.add_argument("--data_path", type=str, default=None)
-    parser.add_argument("--model", default="TransE", type=str)
+    parser.add_argument("--data_path", type=str, default="../data/FB15k-237")
+    parser.add_argument("--model", default="HAKE", type=str)
 
-    parser.add_argument("-n", "--negative_sample_size", default=128, type=int)
-    parser.add_argument("-d", "--hidden_dim", default=500, type=int)
-    parser.add_argument("-g", "--gamma", default=12.0, type=float)
+    parser.add_argument("-n", "--negative_sample_size", default=256, type=int)
+    parser.add_argument("-d", "--hidden_dim", default=1000, type=int)
+    parser.add_argument("-g", "--gamma", default=9.0, type=float)
     parser.add_argument("-a", "--adversarial_temperature", default=1.0, type=float)
     parser.add_argument("-b", "--batch_size", default=1024, type=int)
     parser.add_argument(
         "--test_batch_size", default=4, type=int, help="valid/test batch size"
     )
-    parser.add_argument("-mw", "--modulus_weight", default=1.0, type=float)
-    parser.add_argument("-pw", "--phase_weight", default=0.5, type=float)
+    parser.add_argument("-mw", "--modulus_weight", default=3.5, type=float)
+    parser.add_argument("-pw", "--phase_weight", default=1.0, type=float)
 
-    parser.add_argument("-lr", "--learning_rate", default=0.0001, type=float)
+    parser.add_argument("-lr", "--learning_rate", default=0.00005, type=float)
     parser.add_argument("-cpu", "--cpu_num", default=10, type=int)
     parser.add_argument("-init", "--init_checkpoint", default=None, type=str)
     parser.add_argument("-save", "--save_path", default=None, type=str)
-    parser.add_argument("--max_steps", default=100000, type=int)
+    parser.add_argument("--max_steps", default=10000, type=int)
 
     parser.add_argument("--save_checkpoint_steps", default=10000, type=int)
     parser.add_argument("--valid_steps", default=10000, type=int)
@@ -77,6 +77,28 @@ def parse_args(args=None):
     parser.add_argument(
         "--no_decay", action="store_true", help="Learning rate do not decay"
     )
+    
+
+    # fed args
+    args.add_argument(
+        "--num_rounds",
+        type=float,
+        default=50,
+        help="Dropout probability for convolution layer",
+    )
+    args.add_argument(
+        "--sample_clients",
+        type=float,
+        default=10,
+        help="Dropout probability for convolution layer",
+    )
+    args.add_argument(
+        "--num_clients",
+        type=float,
+        default=20,
+        help="Dropout probability for convolution layer",
+    )
+    
     return parser.parse_args(args)
 
 
@@ -161,29 +183,28 @@ def set_parameters(net, parameters: List[np.ndarray]):
 class FlowerClient(fl.client.NumPyClient):
     """Standard Flower client for CNN training."""
 
-    def __init__(self, args, save_path):
+    def __init__(self, args, data_reader, save_path):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.args = args
-        data_reader = DataReader(args.data_path)
-        num_entity = len(data_reader.entity_dict)
-        num_relation = len(data_reader.relation_dict)
+        self.data_reader = data_reader
+        num_entity = len(self.data_reader.entity_dict)
+        num_relation = len(self.data_reader.relation_dict)
 
-        if args.model == "ModE":
-            self.kge_model = ModE(num_entity, num_relation, args.hidden_dim, args.gamma)
-        elif args.model == "HAKE":
-            self.kge_model = HAKE(
-                num_entity,
-                num_relation,
-                args.hidden_dim,
-                args.gamma,
-                args.modulus_weight,
-                args.phase_weight,
-            )
+        self.kge_model = HAKE(
+            num_entity,
+            num_relation,
+            args.hidden_dim,
+            args.gamma,
+            args.modulus_weight,
+            args.phase_weight,
+        )
 
         self.kge_model = self.kge_model.cuda()
 
         train_dataloader_head = DataLoader(
-            TrainDataset(data_reader, args.negative_sample_size, BatchType.HEAD_BATCH),
+            TrainDataset(
+                self.data_reader, args.negative_sample_size, BatchType.HEAD_BATCH
+            ),
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=max(1, args.cpu_num // 2),
@@ -191,7 +212,9 @@ class FlowerClient(fl.client.NumPyClient):
         )
 
         train_dataloader_tail = DataLoader(
-            TrainDataset(data_reader, args.negative_sample_size, BatchType.TAIL_BATCH),
+            TrainDataset(
+                self.data_reader, args.negative_sample_size, BatchType.TAIL_BATCH
+            ),
             batch_size=args.batch_size,
             shuffle=True,
             num_workers=max(1, args.cpu_num // 2),
@@ -224,16 +247,13 @@ class FlowerClient(fl.client.NumPyClient):
         self, parameters: NDArrays, config: Dict[str, Scalar]
     ) -> Tuple[NDArrays, int, Dict]:
 
-        set_parameters(self.model_conv, parameters)
+        set_parameters(self.kge_model, parameters)
 
         init_step = 0
-        step = init_step
-
-        # Training Loop
         for step in range(init_step, self.args.max_steps):
 
             self.kge_model.train_step(
-                self.kge_model, optimizer, self.train_iterator, args
+                self.kge_model, optimizer, self.train_iterator, self.args
             )
 
             if step >= warm_up_steps:
@@ -245,38 +265,147 @@ class FlowerClient(fl.client.NumPyClient):
                 )
                 warm_up_steps = warm_up_steps * 3
 
-            if step % self.args.save_checkpoint_steps == 0:
-                save_variable_list = {
-                    "step": step,
-                    "current_learning_rate": current_learning_rate,
-                    "warm_up_steps": warm_up_steps,
-                }
-                save_model(self.kge_model, optimizer, save_variable_list, self.args)
-
         metrics = {}
-        metrics = {**metrics, "train_loss": sum(epoch_losses) / len(epoch_losses)}
+        metrics = {**metrics, "train_loss": 0}
 
         return (
             self.get_parameters({}),
-            len(self.Corpus_.train_triples),
+            len(self.data_reader.train_data),
             metrics,
         )
 
 
+def gen_client_fn(args, save_path) -> Callable[[str], FlowerClient]:
+    """Generate the client function that creates the Flower Clients."""
+
+    def client_fn(context: Context) -> FlowerClient:
+        """Create a Flower client representing a single organization."""
+
+        # Let's get the partition corresponding to the i-th client
+        data_reader = DataReader(
+            args.data_path, int(context.node_config["partition-id"])
+        )
+        return FlowerClient(args, data_reader, save_path).to_client()
+
+    return client_fn
+
+
+# Server Stuff
+def get_on_fit_config():
+    def fit_config_fn(server_round: int):
+        fit_config = {"current_round": server_round}
+        return fit_config
+
+    return fit_config_fn
+
+
+def fit_weighted_average(metrics):
+    """Aggregation function for (federated) evaluation metrics."""
+    # Multiply accuracy of each client by number of examples used
+    losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
+    examples = [num_examples for num_examples, _ in metrics]
+
+    # Aggregate and return custom metric (weighted average)
+    return {"train_loss": sum(losses) / sum(examples)}
+
+
 def main(args):
-    if (not args.do_train) and (not args.do_valid) and (not args.do_test):
-        raise ValueError("one of train/val/test mode must be choosed.")
 
-    if args.init_checkpoint:
-        override_config(args)
-    elif args.data_path is None:
-        raise ValueError("one of init_checkpoint/data_path must be choosed.")
-
-    if args.do_train and args.save_path is None:
-        raise ValueError("Where do you want to save your trained model?")
-
+    args.save_path = f"../../models/KBGAT/{args.data_path.split("/")[-1]}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
     if args.save_path and not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
+    client = fl.client.ClientApp(
+        client_fn=gen_client_fn(args, args.save_path),
+        # mods=[fixedclipping_mod] # For Differential Privacy
+    )
+
+    # Get function that will be executed by the strategy's evaluate() method
+    # Here we use it to save global model checkpoints
+    def get_evaluate_fn(args, save_every_round, total_round, save_path):
+        """Return an evaluation function for saving global model."""
+
+        def evaluate(server_round: int, parameters, config):
+            # Save model
+            if server_round != 0 and (
+                server_round == total_round or server_round % save_every_round == 0
+            ):
+                entity_embeddings, relation_embeddings = init_embeddings(
+                    os.path.join(args.data, "entity2vec.txt"),
+                    os.path.join(args.data, "relation2vec.txt"),
+                )
+                entity_embeddings = torch.FloatTensor(entity_embeddings)
+                relation_embeddings = torch.FloatTensor(relation_embeddings)
+
+                data_reader = DataReader(args.data_path)
+                num_entity = len(data_reader.entity_dict)
+                num_relation = len(data_reader.relation_dict)
+
+                # Init model
+                model = HAKE(
+                    num_entity,
+                    num_relation,
+                    args.hidden_dim,
+                    args.gamma,
+                    args.modulus_weight,
+                    args.phase_weight,
+                )
+                set_parameters(model, parameters)
+
+                path = f"{save_path}/peft_{server_round}/"
+                os.makedirs(path, exist_ok=True)
+                path += f"trained_{server_round}.pth"
+                torch.save(model.state_dict(), path)
+                save_model(model, torch.optim.Adam(), {}, args)
+
+            return 0.0, {}
+
+        return evaluate
+
+    def server_fn(context: Context):
+
+        # Define the Strategy
+        strategy = fl.server.strategy.FedAvg(
+            min_available_clients=args.num_clients,  # total clients
+            fraction_fit=args.sample_clients
+            / args.num_clients,  # ratio of clients to sample
+            fraction_evaluate=0.0,  # No federated evaluation
+            # A (optional) function used to configure a "fit()" round
+            on_fit_config_fn=get_on_fit_config(),
+            # A (optional) function to aggregate metrics sent by clients
+            fit_metrics_aggregation_fn=fit_weighted_average,
+            # A (optional) function to execute on the server after each round.
+            # In this example the function only saves the global model.
+            evaluate_fn=get_evaluate_fn(args, 5, args.num_rounds, args.save_path),
+        )
+
+        # # Add Differential Privacy
+        # sampled_clients = cfg.flower.num_clients*strategy.fraction_fit
+        # strategy = DifferentialPrivacyClientSideFixedClipping(
+        #     strategy,
+        #     noise_multiplier=cfg.flower.dp.noise_mult,
+        #     clipping_norm=cfg.flower.dp.clip_norm,
+        #     num_sampled_clients=sampled_clients
+        # )
+
+        # Number of rounds to run the simulation
+        num_rounds = args.num_rounds
+        config = fl.server.ServerConfig(num_rounds=num_rounds)
+
+        return fl.server.ServerAppComponents(strategy=strategy, config=config)
+
+    server = fl.server.ServerApp(server_fn=server_fn)
+
+    client_resources = {"num_cpus": 8, "num_gpus": 1.0}
+    fl.simulation.run_simulation(
+        server_app=server,
+        client_app=client,
+        num_supernodes=args.num_clients,
+        backend_config={
+            "client_resources": client_resources,
+            "init_args": {"logging_level": ERROR, "log_to_driver": False},
+        },
+        verbose_logging=True,
+    )
 
 
 if __name__ == "__main__":
