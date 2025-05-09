@@ -77,7 +77,7 @@ def runTests(dataset):
         completion = dataPoint["completion"][0]["content"]
         print(f"---------------- COMPLETION --------------\n{completion}")
 
-        recommendations = re.findall("(?=\n-([^\n]+)\n)", response)
+        recommendations = re.findall("(?=\n-([^\n]+))", response)
         subResponse = "".join(recommendations)
         falsePositives += len(recommendations)
         for goal in dataPoint["goal"]:
