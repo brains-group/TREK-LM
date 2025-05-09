@@ -50,6 +50,10 @@ save_path = f"./models/centralized/{modelFolderName}/{cfg.dataset.name}/{(dateti
 model = get_model(cfg.model)
 
 CUDA = torch.cuda.is_available()
+if dataset is not None:
+    numDesirable = sum(dataset["label"])
+    desirable_weight = (dataset.num_rows - numDesirable) / numDesirable
+cfg.train.training_arguments["desirable_weight"] = desirable_weight
 training_argumnets = KTOConfig(**cfg.train.training_arguments, output_dir=save_path)
 
 trainer = KTOTrainer(
