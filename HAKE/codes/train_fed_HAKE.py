@@ -8,7 +8,6 @@ from models import KGEModel, ModE, HAKE
 from data import TrainDataset, BatchType, ModeType, DataReader
 from data import BidirectionalOneShotIterator
 
-from models import SpKBGATModified, SpKBGATConvOnly
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
@@ -77,7 +76,6 @@ def parse_args(args=None):
     parser.add_argument(
         "--no_decay", action="store_true", help="Learning rate do not decay"
     )
-    
 
     # fed args
     args.add_argument(
@@ -98,7 +96,7 @@ def parse_args(args=None):
         default=20,
         help="Dropout probability for convolution layer",
     )
-    
+
     return parser.parse_args(args)
 
 
