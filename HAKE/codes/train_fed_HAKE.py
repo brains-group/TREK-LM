@@ -254,14 +254,14 @@ class FlowerClient(fl.client.NumPyClient):
                 self.kge_model, self.optimizer, self.train_iterator, self.args
             )
 
-            if step >= warm_up_steps:
+            if step >= self.warm_up_steps:
                 if not self.args.no_decay:
                     current_learning_rate = current_learning_rate / 10
                 self.optimizer = torch.optim.Adam(
                     filter(lambda p: p.requires_grad, self.kge_model.parameters()),
                     lr=current_learning_rate,
                 )
-                warm_up_steps = warm_up_steps * 3
+                self.warm_up_steps = self.warm_up_steps * 3
 
         metrics = {}
         metrics = {**metrics, "train_loss": 0}
