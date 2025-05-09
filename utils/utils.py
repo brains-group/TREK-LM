@@ -295,7 +295,14 @@ class FlowerClient(
     ):  # pylint: disable=too-many-arguments
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.train_cfg = train_cfg
+
+        desirable_weight = 1
+        if trainset is not None:
+            numDesirable = sum(trainset["label"])
+            desirable_weight = (trainset.num_rows - numDesirable) / numDesirable
+        train_cfg.training_arguments["desirable_weight"] = desirable_weight
         self.training_argumnets = KTOConfig(**train_cfg.training_arguments)
+
         self.tokenizer = tokenizer
         self.save_path = save_path
 

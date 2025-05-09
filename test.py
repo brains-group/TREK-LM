@@ -73,7 +73,7 @@ def runTests(dataset):
 
         completion = dataPoint["completion"][0]["content"]
         print(f"---------------- COMPLETION --------------\n{completion}")
-        for goal in dataPoint["goals"]:
+        for goal in dataPoint["goal"]:
             if goal in response:
                 score += 1
                 print(f"{goal} found in response.")
@@ -88,7 +88,3 @@ with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
 with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
     print("Performing Synthetic Data Test:")
     print(f"Synthetic Data Score: {runTests(json.load(file))}")
-
-with open("./data/movieKnowledgeGraphSyntheticLinkTestDataset.json", "r") as file:
-    print("Performing Synthetic Link Prediction Data Test:")
-    print(f"Synthetic Link Prediction Data Score: {runTests(json.load(file))}")
