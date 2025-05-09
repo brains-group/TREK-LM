@@ -1,5 +1,6 @@
 from datasets import load_dataset
 import json
+import os
 from math import comb
 import random
 from transformers import AutoTokenizer
@@ -443,3 +444,70 @@ print("Number of data points: " + str(len(syntheticBenchmarkDataset)))
 
 with open("movieKnowledgeGraphSyntheticTestDataset.json", "w") as file:
     json.dump(syntheticBenchmarkDataset, file, indent=4)
+
+
+entities = set()
+relations = set()
+test = []
+testProportion = (len(realBenchmarkDataset) + len(syntheticBenchmarkDataset)) / len(
+    nonFederatedSyntheticDataset
+)
+valid = []
+validProportion = 17535 / 272116
+train = []
+for kg in knowledgeGraphs.values():
+    entities.update(kg[HEAD_STRING])
+    entities.update(kg[TAIL_STRING])
+    relations.update(kg[RELATION_STRING])
+
+    valid.append([])
+    train.append([])
+
+    kgTriples = [
+        f"{head}\t{relation}\t{tail}"
+        for head, relation, tail in zip(
+            kg[HEAD_STRING], kg[RELATION_STRING], kg[TAIL_STRING]
+        )
+    ]
+    for triple in kgTriples:
+        if random.random() < testProportion:
+            test.append(triple)
+        elif random.random() < validProportion:
+            valid[-1].append(triple)
+        else:
+            train[-1].append(triple)
+
+    numDataPoints = len(valid[-1]) + len(train[-1])
+    if numDataPoints < 10:
+        test.extend(train[-1])
+        del train[-1]
+        test.extend(valid[-1])
+        del valid[-1]
+
+nonFederatedValid = [triple for triples in valid for triple in triples]
+nonFederatedTrain = [triple for triples in train for triple in triples]
+
+path = "../{}/data/movieKnowledgeGraphDataset"
+for modelName in ["HAKE", "KBGAT"]:
+    loopPath = path.format(modelName)
+    os.makedirs(loopPath, exist_ok=True)
+    with open(f"./{loopPath}/train.txt", "w") as file:
+        file.writelines(nonFederatedTrain)
+    with open(f"./{loopPath}/test.txt", "w") as file:
+        file.writelines(test)
+    with open(f"./{loopPath}/valid.txt", "w") as file:
+        file.writelines(nonFederatedValid)
+
+with open(f"./HAKE/entities.txt", "w") as file:
+    file.writelines([f"{index}\t{entity}" for index, entity in enumerate(entities)])
+with open(f"./HAKE/relations.txt", "w") as file:
+    file.writelines(
+        [f"{index}\t{relation}" for index, relation in enumerate(relations)]
+    )
+
+with open(f"./KBGAT/entity2id.txt", "w") as file:
+    file.writelines([f"{entity}\t{index}" for index, entity in enumerate(entities)])
+with open(f"./KBGAT/relation2id.txt", "w") as file:
+    file.writelines(
+        [f"{relation}\t{index}" for index, relation in enumerate(relations)]
+    )
