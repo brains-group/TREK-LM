@@ -16,7 +16,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-4B")
+parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
 parser.add_argument("--lora_path", type=str, default=None)
 args = parser.parse_args()
 print(args)
@@ -73,10 +73,10 @@ def runTests(dataset):
 
         completion = dataPoint["completion"][0]["content"]
         print(f"---------------- COMPLETION --------------\n{completion}")
-        goal = dataPoint["goal"]
-        if goal in response:
-            score += 1
-            print(f"{goal} found in response.")
+        for goal in dataPoint["goals"]:
+            if goal in response:
+                score += 1
+                print(f"{goal} found in response.")
         print(f"Score: {score}")
     return score / len(dataset)
 
