@@ -362,13 +362,13 @@ for user in kgDataset.keys():
             kgDataset[user].append(newDatapoint)
 
     if len(goodChoices) > 0:
-        for i in range(random.randint(0, len(goodChoices) * 3)):
+        for i in range(random.randint(0, len(goodChoices))):
             generateSyntheticCompletion(goodChoices, True)
     if len(badChoices) > 0:
-        for i in range(random.randint(0, len(badChoices) * 3)):
+        for i in range(random.randint(0, len(badChoices))):
             generateSyntheticCompletion(badChoices, False)
     if len(repChoices) > 0:
-        for i in range(random.randint(0, len(repChoices) * 3)):
+        for i in range(random.randint(0, len(repChoices))):
             generateSyntheticCompletion(repChoices, False, False)
 
 sumDataPoints = 0
@@ -464,7 +464,7 @@ for kg in knowledgeGraphs.values():
     train.append([])
 
     kgTriples = [
-        f"{head}\t{relation}\t{tail}"
+        f"{str(head).replace(" ", "_")}\t{relation.replace(" ", "_")}\t{str(tail).replace(" ", "_")}\n"
         for head, relation, tail in zip(
             kg[HEAD_STRING], kg[RELATION_STRING], kg[TAIL_STRING]
         )
@@ -491,23 +491,48 @@ path = "../{}/data/movieKnowledgeGraphDataset"
 for modelName in ["HAKE", "KBGAT"]:
     loopPath = path.format(modelName)
     os.makedirs(loopPath, exist_ok=True)
-    with open(f"./{loopPath}/train.txt", "w") as file:
+    with open(f"{loopPath}/train.txt", "w") as file:
         file.writelines(nonFederatedTrain)
-    with open(f"./{loopPath}/test.txt", "w") as file:
+    with open(f"{loopPath}/test.txt", "w") as file:
         file.writelines(test)
-    with open(f"./{loopPath}/valid.txt", "w") as file:
+    with open(f"{loopPath}/valid.txt", "w") as file:
         file.writelines(nonFederatedValid)
 
-with open(f"./HAKE/entities.txt", "w") as file:
-    file.writelines([f"{index}\t{entity}" for index, entity in enumerate(entities)])
-with open(f"./HAKE/relations.txt", "w") as file:
+    federatedPath = loopPath + "/federated"
+    os.makedirs(federatedPath, exist_ok=True)
+    for index in range(len(train)):
+        with open(f"{federatedPath}/train{index}.txt", "w") as file:
+            file.writelines(train[index])
+        with open(f"{federatedPath}/valid{index}.txt", "w") as file:
+            file.writelines(valid[index])
+
+
+pathHAKE = path.format("HAKE")
+with open(f"{pathHAKE}/entities.txt", "w") as file:
+    file.writelines([f"{index}\t{entity}\n" for index, entity in enumerate(entities)])
+with open(f"{pathHAKE}/relations.txt", "w") as file:
     file.writelines(
-        [f"{index}\t{relation}" for index, relation in enumerate(relations)]
+        [f"{index}\t{relation}\n" for index, relation in enumerate(relations)]
     )
 
-with open(f"./KBGAT/entity2id.txt", "w") as file:
-    file.writelines([f"{entity}\t{index}" for index, entity in enumerate(entities)])
-with open(f"./KBGAT/relation2id.txt", "w") as file:
+pathKBGAT = path.format("KBGAT")
+with open(f"{pathKBGAT}/entity2id.txt", "w") as file:
+    file.writelines([f"{entity}\t{index}\n" for index, entity in enumerate(entities)])
+with open(f"{pathKBGAT}/relation2id.txt", "w") as file:
     file.writelines(
-        [f"{relation}\t{index}" for index, relation in enumerate(relations)]
+        [f"{relation}\t{index}\n" for index, relation in enumerate(relations)]
+    )
+with open(f"{pathKBGAT}/entity2vec.txt", "w") as file:
+    file.writelines(
+        [
+            ("\t".join([str(random.random() - 0.5) for _ in range(100)]) + "\n")
+            for entity in entities
+        ]
+    )
+with open(f"{pathKBGAT}/relation2vec.txt", "w") as file:
+    file.writelines(
+        [
+            ("\t".join([str(random.random() - 0.5) for _ in range(100)]) + "\n")
+            for relation in relations
+        ]
     )
