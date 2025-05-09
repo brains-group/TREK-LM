@@ -76,15 +76,10 @@ def runTests(dataset):
 
         completion = dataPoint["completion"][0]["content"]
         print(f"---------------- COMPLETION --------------\n{completion}")
-        subResponse = response[
-            response.find("Based on your Knowledge Graph, I recommend") :
-        ]
-        subResponse = subResponse[
-            : max(0, min(subResponse.find("triple"), subResponse.find("\n\n") + 1))
-        ]
-        print(f"---------------- SUBRESPONSE --------------\n{subResponse}")
-        # re.findall("(?=\n([^\n]+)\n)", subResponse)
-        falsePositives += max(1, subResponse.count("\n") - 1)
+
+        recommendations = re.findall("(?=\n-([^\n]+)\n)", response)
+        subResponse = "".join(recommendations)
+        falsePositives += len(recommendations)
         for goal in dataPoint["goal"]:
             if goal in subResponse:
                 truePositives += 1
