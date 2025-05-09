@@ -251,13 +251,13 @@ class FlowerClient(fl.client.NumPyClient):
         for step in range(init_step, self.args.max_steps):
 
             self.kge_model.train_step(
-                self.kge_model, optimizer, self.train_iterator, self.args
+                self.kge_model, self.optimizer, self.train_iterator, self.args
             )
 
             if step >= warm_up_steps:
                 if not self.args.no_decay:
                     current_learning_rate = current_learning_rate / 10
-                optimizer = torch.optim.Adam(
+                self.optimizer = torch.optim.Adam(
                     filter(lambda p: p.requires_grad, self.kge_model.parameters()),
                     lr=current_learning_rate,
                 )
