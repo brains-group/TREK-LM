@@ -51,6 +51,9 @@ tokenizer = AutoTokenizer.from_pretrained(args.base_model_path, use_fast=False)
 
 
 def runTests(dataset):
+    truePositives = 0
+    falsePositives = 0
+    falseNegatives = 0
     score = 0
     for dataPoint in tqdm(dataset):
         text = tokenizer.apply_chat_template(
@@ -73,12 +76,27 @@ def runTests(dataset):
 
         completion = dataPoint["completion"][0]["content"]
         print(f"---------------- COMPLETION --------------\n{completion}")
+        subResponse = response[
+            response.find("Based on your Knowledge Graph, I recommend") :
+        ]
+        subResponse = subResponse[
+            : max(0, min(subResponse.find("triple"), subResponse.find("\n\n") + 1))
+        ]
+        print(f"---------------- SUBRESPONSE --------------\n{subResponse}")
+        # re.findall("(?=\n([^\n]+)\n)", subResponse)
+        falsePositives += max(1, subResponse.count("\n") - 1)
         for goal in dataPoint["goal"]:
-            if goal in response:
-                score += 1
+            if goal in subResponse:
+                truePositives += 1
+                falsePositives -= 1
                 print(f"{goal} found in response.")
-        print(f"Score: {score}")
-    return score / len(dataset)
+            else:
+                falseNegatives += 1
+                print(f"{goal} not found in response.")
+        print(f"truePositives: {truePositives}")
+        print(f"falsePositives: {falsePositives}")
+        print(f"falseNegatives: {falseNegatives}")
+    return f"(Precision: {truePositives/(truePositives+falsePositives)}, Recall: {truePositives/(truePositives+falseNegatives)})"
 
 
 with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:

@@ -179,14 +179,14 @@ for index in range(len(dataset["conversationId"])):
                     and questions[movieId][LIKED_STRING] != 0
                 )
                 if isGood:
-                    goodMovies += movieName + "\n"
+                    goodMovies += "- " + movieName + "\n"
                     goodTriples += json.dumps(newTriple) + "\n"
                     goal = movieName
                     if goal[-1] == ")":
                         goal = goal[: goal.rfind(" ")]
                     goals.append(goal)
                 else:
-                    badMovies += movieName + "\n"
+                    badMovies += "- " + movieName + "\n"
                     badTriples += json.dumps(newTriple) + "\n"
 
                 updateUserKG(movieName, questions[movieId], True)
@@ -313,14 +313,14 @@ for user in kgDataset.keys():
             }
 
             if label:
-                movies += userKG[TAIL_STRING][choiceIndex] + "\n"
+                movies += "- " + userKG[TAIL_STRING][choiceIndex] + "\n"
                 triples += json.dumps(newTriple) + "\n"
                 goal = userKG[TAIL_STRING][choiceIndex]
                 if goal[-1] == ")":
                     goal = goal[: goal.rfind(" ")]
                 goals.append(goal)
             else:
-                movies += userKG[TAIL_STRING][choiceIndex] + "\n"
+                movies += "- " + userKG[TAIL_STRING][choiceIndex] + "\n"
                 triples += json.dumps(newTriple) + "\n"
         choiceIndexes.sort(reverse=True)
         for choiceIndex in choiceIndexes:
