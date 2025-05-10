@@ -193,8 +193,6 @@ def parse_args():
         help="Dropout probability for convolution layer",
     )
 
-    args.add_argument("--f")
-
     args = args.parse_args()
     return args
 
@@ -273,6 +271,7 @@ print(
 )
 CUDA = torch.cuda.is_available()
 
+
 def evaluate_conv(args, unique_entities):
     model_conv = SpKBGATConvOnly(
         entity_embeddings,
@@ -288,8 +287,9 @@ def evaluate_conv(args, unique_entities):
     )
     model_conv.load_state_dict(
         torch.load(
-            "{0}conv/trained_{1}.pth".format(
-                "./checkpoints/fb/out/", args.epochs_conv - 1
+            "{0}/trained_{1}.pth".format(
+                f"../models/KBGAT/FB15k-237/20250508053852/peft_{args.num_rounds}",
+                args.num_rounds,
             )
         ),
         strict=False,

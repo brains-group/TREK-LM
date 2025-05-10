@@ -124,7 +124,7 @@ for index in range(len(dataset["conversationId"])):
                 UNSEEN_STRING,
             ]:
                 userKG[RELATION_STRING][index] = SUGGESTED_STRING
-        elif userKG[RELATION_STRING] == "":
+        if userKG[RELATION_STRING][-1] == "":
             del userKG[HEAD_STRING][-1]
             del userKG[TAIL_STRING][-1]
             del userKG[RELATION_STRING][-1]
@@ -460,9 +460,9 @@ valid = []
 validProportion = 17535 / 272116
 train = []
 for kg in knowledgeGraphs.values():
-    entities.update(kg[HEAD_STRING])
-    entities.update(kg[TAIL_STRING])
-    relations.update(kg[RELATION_STRING])
+    entities.update([str(entity).replace(" ", "_") for entity in kg[HEAD_STRING]])
+    entities.update([str(entity).replace(" ", "_") for entity in kg[TAIL_STRING]])
+    relations.update([relation.replace(" ", "_") for relation in kg[RELATION_STRING]])
 
     valid.append([])
     train.append([])
