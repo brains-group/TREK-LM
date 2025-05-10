@@ -311,7 +311,7 @@ def fit_weighted_average(metrics):
 
 def main(args):
 
-    args.save_path = f"../../models/KBGAT/{args.data_path.split("/")[-1]}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
+    args.save_path = f"../../models/HAKE/{args.data_path.split("/")[-1]}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
     if args.save_path and not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
     client = fl.client.ClientApp(
