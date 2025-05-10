@@ -113,7 +113,8 @@ def runTests(dataset):
         print(f"falsePositives: {falsePositives}")
         print(f"falseNegatives: {falseNegatives}")
         print(f"Hits@: {hits}")
-    return f"\n Number of Tests: {len(dataset)}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\n{"\n".join([f"Hits@{index+1}: {hitCount}" for index, hitCount in enumerate(hits)])})"
+    numDatapoints = len(dataset)
+    return f"\n Number of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])})"
 
 
 if args.data == "movie":
