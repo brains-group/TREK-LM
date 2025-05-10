@@ -56,6 +56,7 @@ def runTests(dataset):
     falsePositives = 0
     falseNegatives = 0
     hits = [0] * 10
+    mrr = 0
     for dataPoint in tqdm(dataset):
         text = tokenizer.apply_chat_template(
             dataPoint["prompt"], tokenize=False, add_generation_prompt=True
@@ -105,6 +106,7 @@ def runTests(dataset):
                 falseNegatives += 1
                 print(f"{goal} not found in response.")
         if rank >= 0:
+            mrr += 1 / rank
             if len(hits) < len(recommendations):
                 hits += [hits[-1]] * (len(recommendations) - len(hits))
             for i in range(rank, len(hits), 1):
@@ -114,7 +116,7 @@ def runTests(dataset):
         print(f"falseNegatives: {falseNegatives}")
         print(f"Hits@: {hits}")
     numDatapoints = len(dataset)
-    return f"\n Number of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])})"
+    return f"\n Number of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\nMRR: {mrr/numDatapoints}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])})"
 
 
 if args.data == "movie":
