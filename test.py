@@ -13,7 +13,7 @@ import sys
 
 
 from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
@@ -42,7 +42,9 @@ else:
 # ============= Generate responses =============
 device = "cuda"
 model = AutoModelForCausalLM.from_pretrained(
-    args.base_model_path, torch_dtype=torch.float16
+    args.base_model_path,
+    torch_dtype=torch.float16,
+    quantization_config=BitsAndBytesConfig(load_in_4bit=True),
 ).to(device)
 if args.lora_path is not None:
     model = PeftModel.from_pretrained(
