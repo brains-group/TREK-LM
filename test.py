@@ -49,14 +49,12 @@ if args.lora_path is not None:
     ).to(device)
 tokenizer = AutoTokenizer.from_pretrained(args.base_model_path, use_fast=False)
 
-hits = [0] * 10
-
 
 def runTests(dataset):
     truePositives = 0
     falsePositives = 0
     falseNegatives = 0
-    score = 0
+    hits = [0] * 10
     for dataPoint in tqdm(dataset):
         text = tokenizer.apply_chat_template(
             dataPoint["prompt"], tokenize=False, add_generation_prompt=True
@@ -80,13 +78,17 @@ def runTests(dataset):
         print(f"---------------- COMPLETION --------------\n{completion}")
 
         recommendations = re.findall("(?=\n-([^\n]+))", response)
-        subResponse = "".join(recommendations)
-        falsePositives += len(recommendations)
+        formatFollowed = len(recommendations) > 0
+        subResponse = response
+        if formatFollowed:
+            subResponse = "".join(recommendations)
+            falsePositives += len(recommendations)
         didHit = False
         for goal in dataPoint["goal"]:
             if goal in subResponse:
                 truePositives += 1
-                falsePositives -= 1
+                if formatFollowed:
+                    falsePositives -= 1
                 didHit = True
                 print(f"{goal} found in response.")
             else:
@@ -103,9 +105,9 @@ def runTests(dataset):
     return f"(Precision: {truePositives/(truePositives+falsePositives)}, Recall: {truePositives/(truePositives+falseNegatives)}, Hits@: {hits})"
 
 
-# with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
-#     print("Performing Real Data Test:")
-#     print(f"Real Data Score: {runTests(json.load(file))}")
+with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
+    print("Performing Real Data Test:")
+    print(f"Real Data Score: {runTests(json.load(file))}")
 
 with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
     print("Performing Synthetic Data Test:")
