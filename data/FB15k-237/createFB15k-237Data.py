@@ -60,17 +60,19 @@ for key in trainGroupedTriples.keys():
 
 
 def createCompletionString(triple, completions, label=True):
-    return {
-        CONTENT_STRING: (COMPLETION_FORMAT_STRING if label else "{}").format(
-            ("\n" if label else " ").join(
-                [
-                    f"{"- " if label else ""}{" -> ".join([completion if val is None else val for val in triple])}"
-                    for completion in completions
-                ]
-            )
-        ),
-        ROLE_STRING: ASSISTANT_STRING,
-    }
+    return [
+        {
+            CONTENT_STRING: (COMPLETION_FORMAT_STRING if label else "{}").format(
+                ("\n" if label else " ").join(
+                    [
+                        f"{"- " if label else ""}{" -> ".join([completion if val is None else val for val in triple])}"
+                        for completion in completions
+                    ]
+                )
+            ),
+            ROLE_STRING: ASSISTANT_STRING,
+        }
+    ]
 
 
 def groupedTriplesToDataset(groupedTriples, includeGoal=False):

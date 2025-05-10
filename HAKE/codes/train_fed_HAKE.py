@@ -61,7 +61,9 @@ def parse_args(args=None):
     parser.add_argument("-lr", "--learning_rate", default=0.00005, type=float)
     parser.add_argument("-cpu", "--cpu_num", default=10, type=int)
     parser.add_argument("-init", "--init_checkpoint", default=None, type=str)
-    parser.add_argument("-save", "--save_path", default=None, type=str)
+    parser.add_argument(
+        "-save", "--save_path", default="../../models/HAKE/FB15k-237", type=str
+    )
     parser.add_argument("--max_steps", default=1000, type=int)
 
     parser.add_argument("--save_checkpoint_steps", default=10000, type=int)
@@ -342,11 +344,17 @@ def main(args):
                 )
                 set_parameters(model, parameters)
 
-                path = f"{save_path}/peft_{server_round}/"
-                os.makedirs(path, exist_ok=True)
-                path += f"trained_{server_round}.pth"
-                torch.save(model.state_dict(), path)
-                save_model(model, torch.optim.Adam(), {}, args)
+                os.makedirs(args.save_path, exist_ok=True)
+
+                save_model(
+                    model,
+                    torch.optim.Adam(
+                        filter(lambda p: p.requires_grad, model.parameters()),
+                        lr=args.learning_rate,
+                    ),
+                    {},
+                    args,
+                )
 
             return 0.0, {}
 
