@@ -18,6 +18,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 parser = argparse.ArgumentParser()
 parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
 parser.add_argument("--lora_path", type=str, default=None)
+parser.add_argument("--data", type=str, default="movie")
 args = parser.parse_args()
 print(args)
 
@@ -83,32 +84,47 @@ def runTests(dataset):
         if formatFollowed:
             subResponse = "".join(recommendations)
             falsePositives += len(recommendations)
-        didHit = False
+        rank = -1
         for goal in dataPoint["goal"]:
             if goal in subResponse:
                 truePositives += 1
+                print(f"{goal} found in response.")
                 if formatFollowed:
                     falsePositives -= 1
-                didHit = True
-                print(f"{goal} found in response.")
+                    for recommendationIndex in range(
+                        len(recommendations)
+                        if rank < 0
+                        else min(len(recommendations), rank)
+                    ):
+                        if goal in recommendations[recommendationIndex]:
+                            rank = recommendationIndex
+                else:
+                    rank = 0
+                    break
             else:
                 falseNegatives += 1
                 print(f"{goal} not found in response.")
-        if didHit:
+        if rank >= 0:
             if len(hits) < len(recommendations):
                 hits += [hits[-1]] * (len(recommendations) - len(hits))
-            for i in range(len(hits) - 1, len(recommendations) - 2, -1):
+            for i in range(rank, len(hits), 1):
                 hits[i] += 1
         print(f"truePositives: {truePositives}")
         print(f"falsePositives: {falsePositives}")
         print(f"falseNegatives: {falseNegatives}")
-    return f"(Precision: {truePositives/(truePositives+falsePositives)}, Recall: {truePositives/(truePositives+falseNegatives)}, Hits@: {hits})"
+        print(f"Hits@: {hits}")
+    return f"\n Number of Tests: {len(dataset)}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\n{"\n".join([f"Hits@{index+1}: {hitCount}" for index, hitCount in enumerate(hits)])})"
 
 
-with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
-    print("Performing Real Data Test:")
-    print(f"Real Data Score: {runTests(json.load(file))}")
+if args.data == "movie":
+    with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
+        print("Performing Real Data Test:")
+        print(f"Real Data Scores: {runTests(json.load(file))}")
 
-with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
-    print("Performing Synthetic Data Test:")
-    print(f"Synthetic Data Score: {runTests(json.load(file))}")
+    with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
+        print("Performing Synthetic Data Test:")
+        print(f"Synthetic Data Scores: {runTests(json.load(file))}")
+elif args.data == "fbk":
+    with open("./data/FB15k-237/testFB15k-237.json", "r") as file:
+        print("Performing FB15k-237 Test:")
+        print(f"FB15k-237 Scores: {runTests(json.load(file))}")

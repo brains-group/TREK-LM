@@ -363,6 +363,8 @@ class FlowerClient(fl.client.NumPyClient):
             current_batch_2hop_indices = self.Corpus_.get_batch_nhop_neighbors_all(
                 args, self.Corpus_.unique_entities_train, self.node_neighbors_2hop
             )
+            if len(current_batch_2hop_indices) == 0:
+                current_batch_2hop_indices = np.array([[0, 0, 0, 0]]).astype(np.int32)
 
         if self.CUDA:
             current_batch_2hop_indices = Variable(
