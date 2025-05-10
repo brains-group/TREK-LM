@@ -62,7 +62,7 @@ def parse_args(args=None):
     parser.add_argument("-cpu", "--cpu_num", default=10, type=int)
     parser.add_argument("-init", "--init_checkpoint", default=None, type=str)
     parser.add_argument("-save", "--save_path", default=None, type=str)
-    parser.add_argument("--max_steps", default=10000, type=int)
+    parser.add_argument("--max_steps", default=1000, type=int)
 
     parser.add_argument("--save_checkpoint_steps", default=10000, type=int)
     parser.add_argument("--valid_steps", default=10000, type=int)
@@ -256,10 +256,10 @@ class FlowerClient(fl.client.NumPyClient):
 
             if step >= self.warm_up_steps:
                 if not self.args.no_decay:
-                    current_learning_rate = current_learning_rate / 10
+                    self.current_learning_rate = self.current_learning_rate / 10
                 self.optimizer = torch.optim.Adam(
                     filter(lambda p: p.requires_grad, self.kge_model.parameters()),
-                    lr=current_learning_rate,
+                    lr=self.current_learning_rate,
                 )
                 self.warm_up_steps = self.warm_up_steps * 3
 
@@ -327,13 +327,6 @@ def main(args):
             if server_round != 0 and (
                 server_round == total_round or server_round % save_every_round == 0
             ):
-                entity_embeddings, relation_embeddings = init_embeddings(
-                    os.path.join(args.data, "entity2vec.txt"),
-                    os.path.join(args.data, "relation2vec.txt"),
-                )
-                entity_embeddings = torch.FloatTensor(entity_embeddings)
-                relation_embeddings = torch.FloatTensor(relation_embeddings)
-
                 data_reader = DataReader(args.data_path)
                 num_entity = len(data_reader.entity_dict)
                 num_relation = len(data_reader.relation_dict)
