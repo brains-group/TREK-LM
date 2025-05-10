@@ -512,9 +512,9 @@ for modelName in ["HAKE", "KBGAT"]:
 
 
 pathHAKE = path.format("HAKE")
-with open(f"{pathHAKE}/entities.txt", "w") as file:
+with open(f"{pathHAKE}/entities.dict", "w") as file:
     file.writelines([f"{index}\t{entity}\n" for index, entity in enumerate(entities)])
-with open(f"{pathHAKE}/relations.txt", "w") as file:
+with open(f"{pathHAKE}/relations.dict", "w") as file:
     file.writelines(
         [f"{index}\t{relation}\n" for index, relation in enumerate(relations)]
     )
