@@ -106,7 +106,7 @@ def runTests(dataset):
                 falseNegatives += 1
                 print(f"{goal} not found in response.")
         if rank >= 0:
-            mrr += 1 / rank
+            mrr += 1 / (rank + 1)
             if len(hits) < len(recommendations):
                 hits += [hits[-1]] * (len(recommendations) - len(hits))
             for i in range(rank, len(hits), 1):
