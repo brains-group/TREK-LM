@@ -113,10 +113,10 @@ nonFederatedDataset = groupedTriplesToDataset(trainGroupedTriples)
 testDataset = groupedTriplesToDataset(testGroupedTriples, True)
 
 partitionSize = math.ceil(len(nonFederatedDataset) / 20)
-federatedDataset = [
-    nonFederatedDataset[index : (index + partitionSize)]
+federatedDataset = {
+    int(index / partitionSize): nonFederatedDataset[index : (index + partitionSize)]
     for index in range(0, len(nonFederatedDataset), partitionSize)
-]
+}
 
 sumPositiveDataPoints = sum([datapoint["label"] for datapoint in nonFederatedDataset])
 sumNegativeDataPoints = len(nonFederatedDataset) - sumPositiveDataPoints
