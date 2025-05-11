@@ -35,7 +35,7 @@ from collections import OrderedDict
 from logging import ERROR
 
 
-data = "FB15k-237"
+data = "movieKnowledgeGraphDataset"
 
 
 def parse_args():
@@ -178,7 +178,7 @@ def parse_args():
     args.add_argument(
         "--num_rounds",
         type=float,
-        default=50,
+        default=200,
         help="Dropout probability for convolution layer",
     )
     args.add_argument(
@@ -190,7 +190,7 @@ def parse_args():
     args.add_argument(
         "--num_clients",
         type=float,
-        default=20,
+        default=401,
         help="Dropout probability for convolution layer",
     )
 

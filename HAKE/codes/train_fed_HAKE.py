@@ -44,7 +44,7 @@ def parse_args(args=None):
     parser.add_argument("--do_valid", action="store_true")
     parser.add_argument("--do_test", action="store_true")
 
-    parser.add_argument("--data_path", type=str, default="../data/FB15k-237")
+    parser.add_argument("--data_path", type=str, default="../data/movieKnowledgeGraphDataset")
     parser.add_argument("--model", default="HAKE", type=str)
 
     parser.add_argument("-n", "--negative_sample_size", default=256, type=int)
@@ -83,7 +83,7 @@ def parse_args(args=None):
     parser.add_argument(
         "--num_rounds",
         type=float,
-        default=50,
+        default=200,
         help="Dropout probability for convolution layer",
     )
     parser.add_argument(
@@ -95,7 +95,7 @@ def parse_args(args=None):
     parser.add_argument(
         "--num_clients",
         type=float,
-        default=20,
+        default=401,
         help="Dropout probability for convolution layer",
     )
 
