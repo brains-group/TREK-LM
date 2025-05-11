@@ -101,6 +101,9 @@ def runTests(dataset):
                             rank = recommendationIndex
                 else:
                     rank = 0
+                    falseNegatives += len(dataPoint["goal"]) - (
+                        dataPoint["goal"].index(goal) + 1
+                    )
                     break
             else:
                 falseNegatives += 1
