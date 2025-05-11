@@ -178,7 +178,7 @@ def main(args):
     # Restore model from checkpoint directory
     logging.info("Loading checkpoint %s..." % args.init_checkpoint)
     checkpoint = torch.load(os.path.join(args.init_checkpoint, "checkpoint"))
-    init_step = checkpoint["step"]
+    init_step = 0
     kge_model.load_state_dict(checkpoint["model_state_dict"])
 
     step = init_step
