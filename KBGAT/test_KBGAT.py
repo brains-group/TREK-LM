@@ -34,7 +34,7 @@ from typing import Callable, Dict, Tuple, List
 from collections import OrderedDict
 from logging import ERROR
 
-data = "FB15k-237"
+data = "movieKnowledgeGraphDataset"
 
 
 def parse_args():
@@ -288,7 +288,7 @@ def evaluate_conv(args, unique_entities):
     model_conv.load_state_dict(
         torch.load(
             "{0}/trained_{1}.pth".format(
-                f"../models/KBGAT/FB15k-237/20250508053852/peft_{args.num_rounds}",
+                f"../models/KBGAT/movieKnowledgeGraphDataset/20250511031904/peft_{args.num_rounds}",
                 args.num_rounds,
             )
         ),

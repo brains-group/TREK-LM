@@ -64,7 +64,7 @@ def parse_args(args=None):
     parser.add_argument(
         "-save", "--save_path", default="../../models/HAKE/FB15k-237", type=str
     )
-    parser.add_argument("--max_steps", default=1000, type=int)
+    parser.add_argument("--max_steps", default=100, type=int)
 
     parser.add_argument("--save_checkpoint_steps", default=10000, type=int)
     parser.add_argument("--valid_steps", default=10000, type=int)
