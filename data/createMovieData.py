@@ -29,6 +29,13 @@ COMPLETION_STRING = "completion"
 LABEL_STRING = "label"
 GOAL_STRING = "goal"
 
+USER_TYPE = "User"
+MOVIE_TYPE = "Movie"
+USER_ID_FORMAT = "http://example.org/user/{}"
+ID_STRING = "@id"
+TYPE_STRING = "@type"
+NAME_STRING = "name"
+
 KG_PREFACE_STRING = "You perform Knowledge Graph Completion. You will recommend a new triple to add to the user's knowledge graph with a tail entity that isn't already in their knowledge graph. The user's entity is represented by {}. Use this knowledge graph when responding to their queries: {}"
 REQUEST_STRING = "Recommend movies to me."
 COMPLETION_FORMAT_STRING = "Based on your Knowledge Graph, I recommend the following:\n{}Here is/are the triple(s) I think you should add to your knowledge graph:\n{}"
@@ -40,14 +47,15 @@ def triplesToStructured(triples):
         head = triples[HEAD_STRING][tripleIndex]
         relation = triples[RELATION_STRING][tripleIndex]
         tail = triples[TAIL_STRING][tripleIndex]
-        if head not in structured:
-            structured[head] = {}
-        if relation not in structured[head]:
-            structured[head][relation] = tail
-        elif isinstance(structured[head][relation], list):
-            structured[head][relation].append(tail)
+        tailObject = {TYPE_STRING: MOVIE_TYPE, NAME_STRING: tail}
+        structured[ID_STRING] = USER_ID_FORMAT.format(head)
+        structured[TYPE_STRING] = USER_TYPE
+        if relation not in structured:
+            structured[relation] = tailObject
+        elif isinstance(structured[relation], list):
+            structured[relation].append(tailObject)
         else:
-            structured[head][relation] = [structured[head][relation], tail]
+            structured[relation] = [structured[relation], tailObject]
     return structured
 
 
