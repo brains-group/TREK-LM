@@ -20,6 +20,7 @@ cfg = get_config("centralized_full")
 parser = argparse.ArgumentParser()
 parser.add_argument("--base_model_path", type=str, default=None)
 parser.add_argument("--dataset_name", type=str, default=None)
+parser.add_argument("--dataset_index", type=str, default=None)
 args = parser.parse_args()
 
 modelFolderName = cfg.model.name
@@ -31,7 +32,10 @@ if args.dataset_name is not None:
 print_config(cfg)
 
 with open(cfg.dataset.path.format(cfg.dataset.name), "r") as file:
-    dataset = Dataset.from_list(json.load(file))
+    jsonDataset = json.load(file)
+    if args.dataset_index is not None:
+        jsonDataset = jsonDataset[args.dataset_index]
+    dataset = Dataset.from_list(jsonDataset)
 
 # ===== Define the tokenizer =====
 tokenizer = AutoTokenizer.from_pretrained(
@@ -45,7 +49,7 @@ if tokenizer.pad_token is None:
     )
 print(f"pad_token_id: {tokenizer.pad_token_id}")
 
-save_path = f"./models/centralized/{modelFolderName}/{cfg.dataset.name}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
+save_path = f"./models/centralized/{modelFolderName}/{cfg.dataset.name}{"" if args.dataset_index is None else f"/{args.dataset_index}"}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
 
 model = get_model(cfg.model)
 
