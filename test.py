@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
 parser.add_argument("--lora_path", type=str, default=None)
 parser.add_argument("--data", type=str, default="movie")
+parser.add_argument("--userID", type=str, default=None)
 args = parser.parse_args()
 print(args)
 
@@ -57,7 +58,16 @@ def runTests(dataset):
     falseNegatives = 0
     hits = [0] * 10
     mrr = 0
+    numTests = 0
+    numDatapoints = 0
     for dataPoint in tqdm(dataset):
+        if args.userID is not None:
+            userID = re.search(
+                r"The user's entity is represented by (\d+).", dataPoint["prompt"][0]["content"]
+            ).group(1)
+            if not (userID == args.userID):
+                continue
+        numTests += 1
         text = tokenizer.apply_chat_template(
             dataPoint["prompt"], tokenize=False, add_generation_prompt=True
         )
@@ -66,7 +76,7 @@ def runTests(dataset):
 
         model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
-        generated_ids = model.generate(**model_inputs, max_new_tokens=4096)
+        generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
         generated_ids = [
             output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
@@ -101,9 +111,6 @@ def runTests(dataset):
                             rank = recommendationIndex
                 else:
                     rank = 0
-                    falseNegatives += len(dataPoint["goal"]) - (
-                        dataPoint["goal"].index(goal) + 1
-                    )
                     break
             else:
                 falseNegatives += 1
@@ -114,12 +121,15 @@ def runTests(dataset):
                 hits += [hits[-1]] * (len(recommendations) - len(hits))
             for i in range(rank, len(hits), 1):
                 hits[i] += 1
+        numDatapoints += 1
         print(f"truePositives: {truePositives}")
         print(f"falsePositives: {falsePositives}")
         print(f"falseNegatives: {falseNegatives}")
-        print(f"Hits@: {hits}")
-    numDatapoints = len(dataset)
-    return f"\n Number of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives)}\nRecall: {truePositives/(truePositives+falseNegatives)}\nMRR: {mrr/numDatapoints}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])})"
+        # print(f"Hits@: {hits}")
+        print(
+            f"\nNumber of Tests: {numTests}\nPrecision: {truePositives/(truePositives+falsePositives) if truePositives > 0 else 0}\nRecall: {truePositives/(truePositives+falseNegatives) if truePositives > 0 else 0}\nMRR: {mrr/numTests}\n{"\n".join([f"Hits@{index+1}: {hitCount/numTests}" for index, hitCount in enumerate(hits) if index == 0 or index == 2 or index == 9])}"
+        )
+    return f"\nNumber of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives) if truePositives > 0 else 0}\nRecall: {truePositives/(truePositives+falseNegatives) if truePositives > 0 else 0}\nMRR: {mrr/numDatapoints}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])}"
 
 
 if args.data == "movie":
