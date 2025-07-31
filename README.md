@@ -14,9 +14,11 @@ The movie KG dataset can be generated simply by running `createMovieData.py` in 
 
 ### LLM Model
 
-The LLM model can be trained normally by running `centralized_train.py`. The dataset, model, and hyperparameters can be adjusted by editting `centralized_full.yaml` in the `conf` folder.
+The LLM model can be trained normally by running `centralized_train.py`. The dataset, model, and hyperparameters can be adjusted by editing `centralized_full.yaml` in the `conf` folder.
+Additionally, you can override the base model path by passing a `--base_model_path` argument. You can also override the dataset name used by passing the `--dataset_name` argument, and you can pass the `--dataset_index` if you are using a federated dataset and want to train on just one client's data (used for the local training ablation).
 
-The LLM model can be trained via a federated simulation by running `train.py`. The dataset, model, and hyperparameters can be adjusted by editting `federated_full.yaml` in the `conf` folder.
+The LLM model can be trained via a federated simulation by running `train.py`. The dataset, model, and hyperparameters can be adjusted by editing `federated_full.yaml` in the `conf` folder.
+Additionally, you can override the base model path by passing a `--base_model_path` argument, and you can override the number of federated training rounds by passing the `--num_rounds` argument (useful for resuming from a checkpoint). You can also override the dataset name used by passing the `--dataset_name` argument.
 
 ### KBGAT
 
@@ -34,7 +36,7 @@ It can be trained via a federated simulation by running `train_fed_HAKE.py` in t
 
 ### LLM Model
 
-The LLM model can be tested by running `test.py` and passing the path to the LoRA checkpoint via the `--lora_path` argument.
+The LLM model can be tested by running `test.py` and passing the path to the LoRA checkpoint via the `--lora_path` argument, and you can use a different base model by passing the `--base_model_path` argument (defaults to Qwen/Qwen3-0.6B). You can also pass the `--userID` argument to test on datapoints based on exclusively one user's data.
 
 ### KBGAT
 
@@ -43,6 +45,10 @@ The KBGAT model can be tested by running `test_KBGAT.py` in the `KBGAT` folder.
 ### HAKE
 
 The HAKE model can be tested by running `test_HAKE.py` in the `HAKE/codes` folder.
+
+## Local Model Training Ablation Tests
+
+The local model training ablation test for the federated model can be done simply by running `testAnalysis.py`, which will handle the training and testing all at once.
 
 ## External Datasets
 
