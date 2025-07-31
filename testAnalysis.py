@@ -38,16 +38,16 @@ syntheticHits1 = 0
 syntheticHits3 = 0
 syntheticHits10 = 0
 for selectedUser in tqdm(selectedUsers):
-    # print(f"Performing Training for User: {selectedUser}")
-    # command = [
-    #     sys.executable,
-    #     "centralized_train.py",
-    #     "--dataset_name",
-    #     "movieKnowledgeGraphDataset",
-    #     "--dataset_index",
-    #     selectedUser[0],
-    # ]
-    # subprocess.run(command, check=True)
+    print(f"Performing Training for User: {selectedUser}")
+    command = [
+        sys.executable,
+        "centralized_train.py",
+        "--dataset_name",
+        "movieKnowledgeGraphDataset",
+        "--dataset_index",
+        selectedUser[0],
+    ]
+    subprocess.run(command, check=True)
 
     print(f"Performing Test for User: {selectedUser}", flush=True)
     loraPath = f"./models/centralized/Qwen/Qwen3-0.6B/movieKnowledgeGraphDataset/{selectedUser[0]}/"
@@ -72,16 +72,16 @@ for selectedUser in tqdm(selectedUsers):
     realHits3 += float(re.search(r"Hits@3: (\d*\.?\d*)", scores).group(1))
     realHits10 += float(re.search(r"Hits@10: (\d*\.?\d*)", scores).group(1))
 
-    # print(f"Performing Synthetic Training for User: {selectedUser}")
-    # command = [
-    #     sys.executable,
-    #     "centralized_train.py",
-    #     "--dataset_name",
-    #     "movieKnowledgeGraphDatasetWithSyntheticData",
-    #     "--dataset_index",
-    #     selectedUser[0],
-    # ]
-    # subprocess.run(command, check=True)
+    print(f"Performing Synthetic Training for User: {selectedUser}")
+    command = [
+        sys.executable,
+        "centralized_train.py",
+        "--dataset_name",
+        "movieKnowledgeGraphDatasetWithSyntheticData",
+        "--dataset_index",
+        selectedUser[0],
+    ]
+    subprocess.run(command, check=True)
 
     print(f"Performing Test for Synthetic User: {selectedUser}", flush=True)
     loraPath = f"./models/centralized/Qwen/Qwen3-0.6B/movieKnowledgeGraphDatasetWithSyntheticData/{selectedUser[0]}/"
