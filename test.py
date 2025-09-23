@@ -140,7 +140,3 @@ if args.data == "movie":
     # with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
     #     print("Performing Synthetic Data Test:")
     #     print(f"Synthetic Data Scores: {runTests(json.load(file))}")
-elif args.data == "fbk":
-    with open("./data/FB15k-237/testFB15k-237.json", "r") as file:
-        print("Performing FB15k-237 Test:")
-        print(f"FB15k-237 Scores: {runTests(json.load(file))}")
