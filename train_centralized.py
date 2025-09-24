@@ -6,7 +6,7 @@ from transformers.trainer_utils import get_last_checkpoint
 
 from utils.data import load_centralized_dataset
 from utils.models import get_model, get_tokenizer_and_data_collator
-from utils.training import set_seed
+from utils.training import calculate_kto_weights, set_seed
 from utils.utils import parse_args_with_config, print_config, generate_deterministic_run_name
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -67,19 +67,16 @@ def main():
         cfg.model.name,
         cfg.model.use_fast_tokenizer,
         cfg.train.padding_side,
+        cfg.model.response_template,
     )
 
     model = get_model(cfg.model)
 
-    desirable_weight, undesirable_weight = 1.0, 1.0
-    if dataset:
-        num_desirable = sum(dataset["label"]) * 3
-        num_undesirable = (dataset.num_rows - num_desirable / 3) * 4
-        if num_desirable > 0 and num_undesirable > 0:
-            if num_desirable < num_undesirable:
-                desirable_weight = num_undesirable / num_desirable
-            else:
-                undesirable_weight = num_desirable / num_undesirable
+    desirable_prompt_weight = cfg.train.get("desirable_prompt_weight", 3.0)
+    undesirable_prompt_weight = cfg.train.get("undesirable_prompt_weight", 4.0)
+    desirable_weight, undesirable_weight = calculate_kto_weights(
+        dataset, desirable_prompt_weight, undesirable_prompt_weight
+    )
     print(f"Desirable weight: {desirable_weight:.2f}, Undesirable weight: {undesirable_weight:.2f}")
 
     training_args = KTOConfig(

@@ -20,7 +20,11 @@ from utils.training import (
     get_on_fit_config,
     set_seed,
 )
-from utils.utils import parse_args_with_config, print_config, generate_deterministic_run_name
+from utils.utils import (
+    parse_args_with_config,
+    print_config,
+    generate_deterministic_run_name,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -66,7 +70,9 @@ def main():
 
     # Check if training is already complete
     if os.path.exists(os.path.join(save_path, "training_complete.txt")):
-        print(f"Training already complete for this configuration. Skipping. Path: {save_path}")
+        print(
+            f"Training already complete for this configuration. Skipping. Path: {save_path}"
+        )
         return
 
     os.makedirs(save_path, exist_ok=True)
@@ -85,17 +91,22 @@ def main():
             if os.path.exists(checkpoint_path):
                 initial_parameters = get_initial_parameters(cfg.model, checkpoint_path)
             else:
-                print(f"Warning: Checkpoint not found at {checkpoint_path}. Starting from scratch.")
+                print(
+                    f"Warning: Checkpoint not found at {checkpoint_path}. Starting from scratch."
+                )
                 start_round = 1
-
 
     # Load federated dataset and tokenizer
     dataset_path = cfg.dataset.path.format(cfg.dataset.name)
     datasets = load_federated_dataset(dataset_path)
     cfg.flower.num_clients = len(datasets)
 
+    # Load dataset and tokenizer
     tokenizer, _ = get_tokenizer_and_data_collator(
-        cfg.model.name, cfg.model.use_fast_tokenizer, cfg.train.padding_side
+        cfg.model.name,
+        cfg.model.use_fast_tokenizer,
+        cfg.train.padding_side,
+        cfg.model.response_template,
     )
 
     client_app = fl.client.ClientApp(
@@ -128,7 +139,10 @@ def main():
         server_app=fl.server.ServerApp(server_fn=server_fn),
         client_app=client_app,
         num_supernodes=cfg.flower.num_clients,
-        backend_config={"client_resources": dict(cfg.flower.client_resources), "init_args": backend_setup},
+        backend_config={
+            "client_resources": dict(cfg.flower.client_resources),
+            "init_args": backend_setup,
+        },
     )
 
     # Mark training as complete

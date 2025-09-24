@@ -20,6 +20,26 @@ from .models import get_model, set_parameters
 backend_setup = {"logging_level": ERROR, "log_to_driver": False}
 
 
+def calculate_kto_weights(
+    dataset, desirable_prompt_weight: float = 3.0, undesirable_prompt_weight: float = 4.0
+) -> Tuple[float, float]:
+    """Calculates weights for KTO loss based on dataset composition."""
+    desirable_weight, undesirable_weight = 1.0, 1.0
+    if dataset:
+        num_desirable_samples = sum(dataset["label"])
+        num_undesirable_samples = len(dataset) - num_desirable_samples
+
+        num_desirable = num_desirable_samples * desirable_prompt_weight
+        num_undesirable = num_undesirable_samples * undesirable_prompt_weight
+
+        if num_desirable > 0 and num_undesirable > 0:
+            if num_desirable < num_undesirable:
+                desirable_weight = num_undesirable / num_desirable
+            else:
+                undesirable_weight = num_desirable / num_undesirable
+    return desirable_weight, undesirable_weight
+
+
 def set_seed(seed: int):
     """Sets the seed for reproducibility."""
     random.seed(seed)
@@ -58,15 +78,11 @@ class FlowerClient(fl.client.NumPyClient):
         self.model = get_model(model_cfg)
         self.trainset = trainset
 
-        desirable_weight = 1
-        undesirable_weight = 1
-        if trainset is not None:
-            num_desirable = sum(trainset["label"]) * 3
-            num_undesirable = (trainset.num_rows - num_desirable / 3) * 4
-            if num_desirable < num_undesirable:
-                desirable_weight = num_undesirable / num_desirable
-            else:
-                undesirable_weight = num_desirable / num_undesirable
+        desirable_prompt_weight = train_cfg.get("desirable_prompt_weight", 3.0)
+        undesirable_prompt_weight = train_cfg.get("undesirable_prompt_weight", 4.0)
+        desirable_weight, undesirable_weight = calculate_kto_weights(
+            trainset, desirable_prompt_weight, undesirable_prompt_weight
+        )
         self.training_arguments = KTOConfig(
             **train_cfg.training_arguments,
             desirable_weight=desirable_weight,

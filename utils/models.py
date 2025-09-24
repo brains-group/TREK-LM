@@ -77,7 +77,7 @@ def get_model(model_cfg: DictConfig):
 
 
 def get_tokenizer_and_data_collator(
-    model_name: str, use_fast: bool, padding_side: str
+    model_name: str, use_fast: bool, padding_side: str, response_template: str
 ):
     """Gets the tokenizer and data collator for SFT training."""
 
@@ -90,7 +90,7 @@ def get_tokenizer_and_data_collator(
         tokenizer.pad_token = (
             tokenizer.bos_token if padding_side == "left" else tokenizer.eos_token
         )
-    response_template_with_context = "\n### Response:"  # alpaca response tag
+    response_template_with_context = response_template
     response_template_ids = tokenizer.encode(
         response_template_with_context, add_special_tokens=False
     )[2:]

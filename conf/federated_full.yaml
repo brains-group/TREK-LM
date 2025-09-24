@@ -1,6 +1,8 @@
 # Federated Instruction Tuning on General Dataset
 ---
 
+seed: 42
+
 dataset:
   path: "./data/{}.json"
   name: "movieKnowledgeGraphDatasetWithSyntheticData"
@@ -10,6 +12,7 @@ model:
   quantization: 4 # 8 or 4 if you want to do quantization with BitsAndBytes
   gradient_checkpointing: True
   use_fast_tokenizer: False
+  response_template: "<|im_start|>assistant"
   lora:
     peft_lora_r: 16
     peft_lora_alpha: 64
