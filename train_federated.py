@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 import flwr as fl
 from flwr.common import Context, Parameters
 from flwr.common.typing import NDArrays
-from peft import PeftModel
+from peft import PeftModel, get_peft_model_state_dict
 from transformers import AutoModelForCausalLM
 
 from utils.data import load_federated_dataset
@@ -32,10 +32,12 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 def get_initial_parameters(model_cfg, checkpoint_path: str) -> Parameters:
     """Load initial parameters from a checkpoint."""
+    # Create a base model and load the adapter from the checkpoint
     model = get_model(model_cfg)
-    model.load_adapter(checkpoint_path)
+    resumed_model = PeftModel.from_pretrained(model.base_model, checkpoint_path)
 
-    state_dict = model.state_dict()
+    # Extract the state dict of the adapter
+    state_dict = get_peft_model_state_dict(resumed_model)
     nd_arrays = [val.cpu().numpy() for _, val in state_dict.items()]
     return fl.common.ndarrays_to_parameters(nd_arrays)
 
@@ -60,9 +62,6 @@ def main():
 
     set_seed(cfg.seed)
     print(f"Using seed: {cfg.seed}")
-
-    if "training_arguments" in cfg.train:
-        cfg.train.training_arguments.seed = cfg.seed
 
     # Determine run name and save path
     run_name = generate_deterministic_run_name(cfg, original_cfg)
@@ -118,21 +117,23 @@ def main():
             min_available_clients=cfg.flower.num_clients,
             fraction_fit=cfg.flower.sample_clients / cfg.flower.num_clients,
             fraction_evaluate=0.0,
-            on_fit_config_fn=get_on_fit_config(),
+            on_fit_config_fn=get_on_fit_config(start_round=start_round),
             fit_metrics_aggregation_fn=fit_weighted_average,
             evaluate_fn=get_evaluate_fn(
-                cfg.model, cfg.train.save_every_round, cfg.flower.num_rounds, save_path
+                cfg.model,
+                cfg.train.save_every_round,
+                cfg.flower.num_rounds,
+                save_path,
+                start_round=start_round,
             ),
             initial_parameters=initial_parameters,
         )
         server_config = fl.server.ServerConfig(
-            num_rounds=cfg.flower.num_rounds,
+            num_rounds=cfg.flower.num_rounds - (start_round - 1),
         )
-        # Flower's server does not have a concept of start_round, so the simulation
-        # will run for num_rounds, but the evaluate_fn will save checkpoints
-        # with the correct global round number if we were to adjust it.
-        # For simplicity, we let it run and it will overwrite checkpoints if resuming.
-        # A more robust solution would involve a custom server/strategy.
+        # The simulation runs for the remaining number of rounds.
+        # The `start_round` is passed to the evaluate_fn to correctly save
+        # checkpoints with the global round number.
         return fl.server.ServerAppComponents(strategy=strategy, config=server_config)
 
     fl.simulation.run_simulation(

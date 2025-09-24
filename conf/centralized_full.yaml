@@ -32,3 +32,4 @@ train:
     save_total_limit: 10
     gradient_checkpointing: True # ! Ensure it matches that in model
     lr_scheduler_type: "cosine"
+    seed: ${seed}

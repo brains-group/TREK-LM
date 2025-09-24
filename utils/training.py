@@ -163,38 +163,54 @@ def gen_client_fn(
 import os
 import json
 
-def get_evaluate_fn(model_cfg, save_every_round, total_round, save_path):
+
+def get_evaluate_fn(model_cfg, save_every_round, total_round, save_path, start_round=1):
     """
     Return an evaluation function for saving the global model and server state.
     """
+
     def evaluate(server_round: int, parameters, config):
-        if server_round == 0:
+        # Adjust the server_round to be the global round number
+        global_round = server_round + start_round - 1
+
+        if global_round == 0:
             return 0.0, {}
 
         # Save model checkpoint
-        if server_round == total_round or server_round % save_every_round == 0:
+        if (
+            global_round == total_round
+            or global_round % save_every_round == 0
+        ):
             model = get_model(model_cfg)
             set_parameters(model, parameters)
-            model.save_pretrained(os.path.join(save_path, f"checkpoint-{server_round}"))
+            model.save_pretrained(
+                os.path.join(save_path, f"checkpoint-{global_round}")
+            )
 
             # Save server state (current round)
-            state = {"last_round": server_round}
+            state = {"last_round": global_round}
             with open(os.path.join(save_path, "server_state.json"), "w") as f:
                 json.dump(state, f)
 
-            print(f"Saved checkpoint and server state for round {server_round}")
+            print(f"Saved checkpoint and server state for round {global_round}")
 
         return 0.0, {}
 
     return evaluate
 
 
-def get_on_fit_config(fit_config_fn=None) -> Callable[[int], Dict[str, Scalar]]:
+def get_on_fit_config(
+    fit_config_fn=None, start_round=1
+) -> Callable[[int], Dict[str, Scalar]]:
     """Return a function which returns a configuration with the current round."""
 
     def fit_config(server_round: int) -> Dict[str, Scalar]:
         """Return a configuration with the current round."""
-        config = {"current_round": server_round}
+        # The server_round is the local round number (1, 2, 3,...)
+        # The start_round is the global round number where the training starts
+        # (e.g., 1 if starting from scratch, 101 if resuming from round 100)
+        global_round = server_round + start_round - 1
+        config = {"current_round": global_round}
         return config
 
     return fit_config
