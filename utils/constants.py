@@ -36,6 +36,6 @@ TYPE_STRING = "@type"
 NAME_STRING = "name"
 
 # Prompt templates
-KG_PREFACE_STRING = "You perform Knowledge Graph Completion. You will recommend a new triple to add to the user's knowledge graph with a tail entity that isn't already in their knowledge graph. The user's entity is represented by {}. Use this knowledge graph when responding to their queries: {}"
+KG_PREFACE_STRING = "You perform movie recommendations based on a Knowledge Graph. You will recommend a list of movies to the user that are not already in their knowledge graph. The user's entity is represented by {}. Use this knowledge graph when responding to their queries: {}. Provide the recommendations as a bulleted list with dashes (-) as the bullet points."
 REQUEST_STRING = "Recommend movies to me."
-COMPLETION_FORMAT_STRING = "Based on your Knowledge Graph, I recommend the following:\n{}Here is/are the triple(s) I think you should add to your knowledge graph:\n{}"
+COMPLETION_FORMAT_STRING = "Based on your Knowledge Graph, I recommend the following:\n{}"
