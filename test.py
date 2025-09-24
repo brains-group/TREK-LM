@@ -1,142 +1,156 @@
-import datasets
 import argparse
 import json
-import sys
-import re
-
-sys.path.append("../../")
-sys.path.append("../../../")
-from tqdm import tqdm
 import os
-import torch
-import sys
+import re
+from tqdm import tqdm
+
+from utils.models import load_peft_model, get_tokenizer_and_data_collator
 
 
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
-parser.add_argument("--lora_path", type=str, default=None)
-parser.add_argument("--data", type=str, default="movie")
-parser.add_argument("--userID", type=str, default=None)
-args = parser.parse_args()
-print(args)
-
-# ============= Extract model name from the path. The name is used for saving results. =============
-if args.lora_path:
-    pre_str, checkpoint_str = os.path.split(args.lora_path)
-    _, exp_name = os.path.split(pre_str)
-    checkpoint_id = checkpoint_str.split("-")[-1]
-    model_name = f"{exp_name}_{checkpoint_id}"
-else:
-    pre_str, last_str = os.path.split(args.base_model_path)
-    if last_str.startswith("full"):  # if the model is merged as full model
-        _, exp_name = os.path.split(pre_str)
-        checkpoint_id = last_str.split("-")[-1]
-        model_name = f"{exp_name}_{checkpoint_id}"
-    else:
-        model_name = last_str  # mainly for base model
-        exp_name = model_name
+def get_prompt_id(data_point):
+    """Creates a unique ID for a data point based on its prompt content."""
+    return data_point["prompt"][0]["content"]
 
 
-# ============= Generate responses =============
-device = "cuda"
-model = AutoModelForCausalLM.from_pretrained(
-    args.base_model_path, torch_dtype=torch.float16
-).to(device)
-if args.lora_path is not None:
-    model = PeftModel.from_pretrained(
-        model, args.lora_path, torch_dtype=torch.float16
-    ).to(device)
-tokenizer = AutoTokenizer.from_pretrained(args.base_model_path, use_fast=False)
+def main():
+    """Main function to run the evaluation of a model on a test dataset."""
+    parser = argparse.ArgumentParser(description="Model evaluation script.")
+    parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
+    parser.add_argument("--lora_path", type=str, default=None)
+    parser.add_argument("--data_path", type=str, default="./data/movieKnowledgeGraphTestDataset.json")
+    parser.add_argument("--user_id", type=str, default=None)
+    args = parser.parse_args()
+    print(f"Running evaluation with arguments: {args}")
 
+    # Determine model directory for saving predictions
+    model_dir = os.path.dirname(args.lora_path) if args.lora_path else args.base_model_path
+    predictions_file = os.path.join(model_dir, "predictions.jsonl")
 
-def runTests(dataset):
-    truePositives = 0
-    falsePositives = 0
-    falseNegatives = 0
+    # Load existing predictions if file exists
+    completed_prompts = {}
+    if os.path.exists(predictions_file):
+        print(f"Resuming from existing predictions file: {predictions_file}")
+        with open(predictions_file, "r") as f:
+            for line in f:
+                pred = json.loads(line)
+                completed_prompts[pred["id"]] = pred["response"]
+
+    # Load model and tokenizer
+    model = load_peft_model(args.base_model_path, args.lora_path)
+    tokenizer, _ = get_tokenizer_and_data_collator(
+        args.base_model_path, use_fast=False, padding_side="left"
+    )
+
+    # Load data
+    with open(args.data_path, "r") as file:
+        dataset = json.load(file)
+
+    # Run evaluation loop
+    with open(predictions_file, "a") as f_out:
+        for data_point in tqdm(dataset, desc="Evaluating"):
+            prompt_id = get_prompt_id(data_point)
+
+            if args.user_id:
+                user_id_match = re.search(r"The user's entity is represented by (\d+).", prompt_id)
+                if not user_id_match or user_id_match.group(1) != args.user_id:
+                    continue
+
+            if prompt_id in completed_prompts:
+                continue
+
+            text = tokenizer.apply_chat_template(
+                data_point["prompt"], tokenize=False, add_generation_prompt=True
+            )
+
+            model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+            generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
+            response = tokenizer.batch_decode(
+                generated_ids[:, model_inputs.input_ids.shape[1]:], skip_special_tokens=True
+            )[0]
+
+            # Save progress immediately
+            result = {"id": prompt_id, "response": response, "goal": data_point["goal"]}
+            f_out.write(json.dumps(result) + "\n")
+            completed_prompts[prompt_id] = response
+
+    # Process all results for metrics
+    true_positives, false_positives, false_negatives = 0, 0, 0
     hits = [0] * 10
     mrr = 0
-    numTests = 0
-    numDatapoints = 0
-    for dataPoint in tqdm(dataset):
-        if args.userID is not None:
-            userID = re.search(
-                r"The user's entity is represented by (\d+).", dataPoint["prompt"][0]["content"]
-            ).group(1)
-            if not (userID == args.userID):
+    num_datapoints = 0
+
+    for data_point in dataset:
+        prompt_id = get_prompt_id(data_point)
+        if prompt_id not in completed_prompts:
+            continue
+
+        if args.user_id:
+            user_id_match = re.search(r"The user's entity is represented by (\d+).", prompt_id)
+            if not user_id_match or user_id_match.group(1) != args.user_id:
                 continue
-        numTests += 1
-        text = tokenizer.apply_chat_template(
-            dataPoint["prompt"], tokenize=False, add_generation_prompt=True
-        )
 
-        print(f"---------------- PROMPT --------------\n{text}")
+        num_datapoints += 1
+        response = completed_prompts[prompt_id]
+        recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
+        format_followed = len(recommendations) > 0
+        sub_response = "".join(recommendations) if format_followed else response
 
-        model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+        if format_followed:
+            false_positives += len(recommendations)
 
-        generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
-        generated_ids = [
-            output_ids[len(input_ids) :]
-            for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-        ]
-
-        response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-        print(f"---------------- RESPONSE --------------\n{response}")
-
-        completion = dataPoint["completion"][0]["content"]
-        print(f"---------------- COMPLETION --------------\n{completion}")
-
-        recommendations = re.findall("(?=\n-([^\n]+))", response)
-        formatFollowed = len(recommendations) > 0
-        subResponse = response
-        if formatFollowed:
-            subResponse = "".join(recommendations)
-            falsePositives += len(recommendations)
         rank = -1
-        for goal in dataPoint["goal"]:
-            if goal in subResponse:
-                truePositives += 1
-                print(f"{goal} found in response.")
-                if formatFollowed:
-                    falsePositives -= 1
-                    for recommendationIndex in range(
-                        len(recommendations)
-                        if rank < 0
-                        else min(len(recommendations), rank)
-                    ):
-                        if goal in recommendations[recommendationIndex]:
-                            rank = recommendationIndex
+        for goal in data_point["goal"]:
+            if goal in sub_response:
+                true_positives += 1
+                if format_followed:
+                    false_positives -= 1
+                    for i, rec in enumerate(recommendations):
+                        if goal in rec:
+                            rank = i
+                            break
                 else:
                     rank = 0
-                    break
+                break
             else:
-                falseNegatives += 1
-                print(f"{goal} not found in response.")
-        if rank >= 0:
+                false_negatives += 1
+
+        if rank != -1:
             mrr += 1 / (rank + 1)
-            if len(hits) < len(recommendations):
-                hits += [hits[-1]] * (len(recommendations) - len(hits))
-            for i in range(rank, len(hits), 1):
+            for i in range(rank, len(hits)):
                 hits[i] += 1
-        numDatapoints += 1
-        print(f"truePositives: {truePositives}")
-        print(f"falsePositives: {falsePositives}")
-        print(f"falseNegatives: {falseNegatives}")
-        # print(f"Hits@: {hits}")
-        print(
-            f"\nNumber of Tests: {numTests}\nPrecision: {truePositives/(truePositives+falsePositives) if truePositives > 0 else 0}\nRecall: {truePositives/(truePositives+falseNegatives) if truePositives > 0 else 0}\nMRR: {mrr/numTests}\n{"\n".join([f"Hits@{index+1}: {hitCount/numTests}" for index, hitCount in enumerate(hits) if index == 0 or index == 2 or index == 9])}"
-        )
-    return f"\nNumber of Tests: {numDatapoints}\nPrecision: {truePositives/(truePositives+falsePositives) if truePositives > 0 else 0}\nRecall: {truePositives/(truePositives+falseNegatives) if truePositives > 0 else 0}\nMRR: {mrr/numDatapoints}\n{"\n".join([f"Hits@{index+1}: {hitCount/numDatapoints}" for index, hitCount in enumerate(hits)])}"
+
+    # Calculate and print final metrics
+    metrics = {}
+    if num_datapoints > 0:
+        precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+        mrr_score = mrr / num_datapoints
+
+        metrics = {
+            "Precision": precision,
+            "Recall": recall,
+            "MRR": mrr_score,
+        }
+        for i, hit_count in enumerate(hits):
+            metrics[f"Hits@{i+1}"] = hit_count / num_datapoints
+
+        print("\n" + "="*36)
+        print(f"|    EVALUATION RESULTS ({num_datapoints} examples)    |")
+        print("="*36)
+        print(f"| {'Metric':<12} | {'Value':<18} |")
+        print("|" + "-"*14 + "|" + "-"*20 + "|")
+        print(f"| {'Precision':<12} | {metrics['Precision']:<18.4f} |")
+        print(f"| {'Recall':<12} | {metrics['Recall']:<18.4f} |")
+        print(f"| {'MRR':<12} | {metrics['MRR']:<18.4f} |")
+        print(f"| {'Hits@1':<12} | {metrics['Hits@1']:<18.4f} |")
+        print(f"| {'Hits@3':<12} | {metrics['Hits@3']:<18.4f} |")
+        print(f"| {'Hits@10':<12} | {metrics['Hits@10']:<18.4f} |")
+        print("="*36)
+    else:
+        print("No data points were evaluated.")
+
+    return metrics
 
 
-if args.data == "movie":
-    with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
-        print("Performing Real Data Test:")
-        print(f"Real Data Scores: {runTests(json.load(file))}")
-
-    # with open("./data/movieKnowledgeGraphSyntheticTestDataset.json", "r") as file:
-    #     print("Performing Synthetic Data Test:")
-    #     print(f"Synthetic Data Scores: {runTests(json.load(file))}")
+if __name__ == "__main__":
+    main()

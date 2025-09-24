@@ -1,88 +1,109 @@
+import os
 import warnings
+from trl import KTOConfig, KTOTrainer
+from transformers import TrainerCallback, TrainerState, TrainerControl
+from transformers.trainer_utils import get_last_checkpoint
+
+from utils.data import load_centralized_dataset
+from utils.models import get_model, get_tokenizer_and_data_collator
+from utils.training import set_seed
+from utils.utils import parse_args_with_config, print_config, generate_deterministic_run_name
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
-import flwr as fl
-from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import IidPartitioner
-from datasets import load_dataset
-from flwr.client.mod import fixedclipping_mod
-from flwr.server.strategy import DifferentialPrivacyClientSideFixedClipping
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from datetime import datetime
-import argparse
 
-from utils.utils import *
+class CompletionCallback(TrainerCallback):
+    def on_train_end(self, args, state, control, **kwargs):
+        # Create a file to indicate that training is complete
+        open(os.path.join(args.output_dir, "training_complete.txt"), "a").close()
 
-cfg = get_config("centralized_full")
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--base_model_path", type=str, default=None)
-parser.add_argument("--dataset_name", type=str, default=None)
-parser.add_argument("--dataset_index", type=str, default=None)
-args = parser.parse_args()
+def main():
+    """
+    Main function to run a centralized training experiment.
 
-modelFolderName = cfg.model.name
-if args.base_model_path is not None:
-    cfg.model.name = args.base_model_path
-if args.dataset_name is not None:
-    cfg.dataset.name = args.dataset_name
+    This function orchestrates the entire process:
+    1. Parses command-line arguments to get the configuration file and any overrides.
+    2. Sets the random seed for reproducibility.
+    3. Loads the specified dataset and tokenizer.
+    4. Generates a deterministic run name and save path based on the config.
+    5. Checks if the training is already complete or can be resumed.
+    6. Initializes the model using the configuration.
+    7. Calculates weights for KTO loss.
+    8. Configures and starts the Hugging Face Trainer.
+    9. Saves the final model upon completion.
+    """
+    cfg, original_cfg = parse_args_with_config()
+    print("Configuration:")
+    print_config(cfg)
 
-print_config(cfg)
+    set_seed(cfg.seed)
+    print(f"Using seed: {cfg.seed}")
 
-with open(cfg.dataset.path.format(cfg.dataset.name), "r") as file:
-    jsonDataset = json.load(file)
-    if args.dataset_index is not None:
-        jsonDataset = jsonDataset[args.dataset_index]
-    dataset = Dataset.from_list(jsonDataset)
+    # Determine run name and save path
+    run_name = generate_deterministic_run_name(cfg, original_cfg)
+    save_path = f"./models/centralized/{run_name}"
 
-# ===== Define the tokenizer =====
-tokenizer = AutoTokenizer.from_pretrained(
-    cfg.model.name,
-    use_fast=cfg.model.use_fast_tokenizer,
-    # padding_side=cfg.train.padding_side,
-)
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = (
-        tokenizer.bos_token if tokenizer.padding_side == "left" else tokenizer.eos_token
-    )
-print(f"pad_token_id: {tokenizer.pad_token_id}")
+    # Check if training is already complete
+    if os.path.exists(os.path.join(save_path, "training_complete.txt")):
+        print(f"Training already complete for this configuration. Skipping run. Path: {save_path}")
+        return
 
-save_path = f"./models/centralized/{modelFolderName}/{cfg.dataset.name}{"" if args.dataset_index is None else f"/{args.dataset_index}"}/{(datetime.now()).strftime("%Y%m%d%H%M%S")}"
-
-model = get_model(cfg.model)
-
-CUDA = torch.cuda.is_available()
-desirable_weight = 1
-undesirable_weight = 1
-if dataset is not None:
-    numDesirable = sum(dataset["label"]) * 3
-    numUndesirable = (dataset.num_rows - numDesirable / 3) * 4
-    if numDesirable < numUndesirable:
-        desirable_weight = numUndesirable / numDesirable
+    # Check for last checkpoint
+    last_checkpoint = get_last_checkpoint(save_path)
+    if last_checkpoint:
+        print(f"Resuming from checkpoint: {last_checkpoint}")
+        resume_from_checkpoint = last_checkpoint
     else:
-        undesirable_weight = numDesirable / numUndesirable
-print(f"numDesirable: {sum(dataset["label"])}")
-print(f"numUndesirable: {dataset.num_rows - sum(dataset["label"])}")
-print(f"desirable_weight: {desirable_weight}")
-print(f"undesirable_weight: {undesirable_weight}")
+        resume_from_checkpoint = None
+        os.makedirs(save_path, exist_ok=True)
 
-training_argumnets = KTOConfig(
-    **cfg.train.training_arguments,
-    output_dir=save_path,
-    desirable_weight=desirable_weight,
-    undesirable_weight=undesirable_weight,
-)
 
-trainer = KTOTrainer(
-    model=model,
-    processing_class=tokenizer,
-    args=training_argumnets,
-    train_dataset=dataset,
-)
+    # Load dataset and tokenizer
+    dataset_path = cfg.dataset.path.format(cfg.dataset.name)
+    dataset = load_centralized_dataset(dataset_path, cfg.get("dataset_index", None))
+    tokenizer, data_collator = get_tokenizer_and_data_collator(
+        cfg.model.name,
+        cfg.model.use_fast_tokenizer,
+        cfg.train.padding_side,
+    )
 
-# Do training
-results = trainer.train()
+    model = get_model(cfg.model)
 
-model.save_pretrained(save_path)
+    desirable_weight, undesirable_weight = 1.0, 1.0
+    if dataset:
+        num_desirable = sum(dataset["label"]) * 3
+        num_undesirable = (dataset.num_rows - num_desirable / 3) * 4
+        if num_desirable > 0 and num_undesirable > 0:
+            if num_desirable < num_undesirable:
+                desirable_weight = num_undesirable / num_desirable
+            else:
+                undesirable_weight = num_desirable / num_undesirable
+    print(f"Desirable weight: {desirable_weight:.2f}, Undesirable weight: {undesirable_weight:.2f}")
+
+    training_args = KTOConfig(
+        **cfg.train.training_arguments,
+        output_dir=save_path,
+        desirable_weight=desirable_weight,
+        undesirable_weight=undesirable_weight,
+        seed=cfg.seed,
+    )
+
+    trainer = KTOTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        callbacks=[CompletionCallback()],
+    )
+
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+
+    model.save_pretrained(save_path)
+    print(f"Model saved to {save_path}")
+
+
+if __name__ == "__main__":
+    main()
