@@ -2,6 +2,7 @@
 A module for general-purpose utility functions, including configuration management,
 logging, and result visualization.
 """
+
 import argparse
 import logging
 import textwrap
@@ -38,6 +39,7 @@ FLOWER_LOGGER.removeHandler(console_handler)
 
 class ConsoleHandlerV2(ConsoleHandler):
     """A console handler with more compact logging format."""
+
     def format(self, record: LogRecord) -> str:
         """Format function that adds colors to log level."""
         if self.json:
@@ -84,7 +86,9 @@ def parse_args_with_config() -> (DictConfig, DictConfig):
     Returns the final, merged config and the original config from the file.
     """
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--cfg", type=str, required=True, help="Path to YAML config file.")
+    parser.add_argument(
+        "--cfg", type=str, required=True, help="Path to YAML config file."
+    )
     args, remaining_argv = parser.parse_known_args()
 
     original_cfg = get_config(args.cfg)
@@ -105,6 +109,7 @@ def parse_args_with_config() -> (DictConfig, DictConfig):
 def generate_deterministic_run_name(cfg: DictConfig, original_cfg: DictConfig) -> str:
     """Generates a deterministic run name from the config file and overrides."""
     import os
+
     config_name = os.path.splitext(os.path.basename(cfg.config_path))[0]
 
     overrides = []
@@ -126,23 +131,54 @@ def generate_deterministic_run_name(cfg: DictConfig, original_cfg: DictConfig) -
 
     # Filter out keys that are not useful for the run name
     exclude_keys = ["config_path", "dataset.path"]
-    filtered_overrides = [ov for ov in overrides if not any(ex in ov for ex in exclude_keys)]
+    filtered_overrides = [
+        ov for ov in overrides if not any(ex in ov for ex in exclude_keys)
+    ]
 
     run_name = config_name
     if filtered_overrides:
         # Create a sorted, sanitized string of overrides
-        override_str = "-".join(sorted(filtered_overrides)).replace("=", "_").replace(".", "_")
+        override_str = (
+            "-".join(sorted(filtered_overrides)).replace("=", "_").replace(".", "_")
+        )
         run_name += "-" + override_str
 
     return run_name.replace("/", "_")
 
 
-def visualize_partitions(fed_dataset: FederatedDataset):
-    """Visualizes the number of examples in each partition of a FederatedDataset."""
-    #... (implementation remains the same)
-
 def compute_communication_costs(config, comm_bw_mbps: float = 20):
     """Computes and prints the communication costs for a given model and FL setting."""
-    #... (implementation remains the same)
+    model = get_model(config.model)
 
-#... (plotting functions remain the same)
+    trainable, all_parameters = model.get_nb_trainable_parameters()
+
+    total_size = 4 * all_parameters / (1024**2)
+    trainable_size = 4 * trainable / (1024**2)
+
+    upload_time_total = total_size / (comm_bw_mbps / 8)
+    upload_time_finetune = trainable_size / (comm_bw_mbps / 8)
+
+    print(
+        f"Full model:\n\t{all_parameters/1e6:.3f} M parameters\n\t{total_size:.2f} MB --> upload in {upload_time_total:.2f}s @ {comm_bw_mbps}Mbps"
+    )
+    print(
+        f"Finetuned model:\n\t{trainable/1e6:.3f} M parameters\n\t{trainable_size:.2f} MB --> upload in {upload_time_finetune:.2f}s @ {comm_bw_mbps}Mbps"
+    )
+    # print(f"In a {comm_bw_mbps} Mbps channel --> {}")
+
+    num_rounds = config.flower.num_rounds
+    num_clients_per_round = int(config.flower.num_clients * config.flower.fraction_fit)
+    print(
+        f"Federated Learning setting: "
+        f"\n\tNumber of rounds: {num_rounds}"
+        f"\n\tNumber of clients per round: {num_clients_per_round}"
+    )
+
+    print(f"-----------------------------------------------")
+    print(
+        f"Total Communication costs (Full model): {2*num_rounds*num_clients_per_round*total_size/1024:.1f} GB"
+    )
+    print(
+        f"Total Communication costs (Finetuning): {2*num_rounds*num_clients_per_round*trainable_size} MB"
+    )
+    print(f"Communication savings: {all_parameters/trainable:.1f}x")

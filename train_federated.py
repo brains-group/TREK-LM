@@ -24,6 +24,7 @@ from utils.utils import (
     parse_args_with_config,
     print_config,
     generate_deterministic_run_name,
+    compute_communication_costs,
 )
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -150,6 +151,9 @@ def main():
     with open(os.path.join(save_path, "training_complete.txt"), "w") as f:
         f.write("complete")
     print(f"Federated training complete. Final model available at: {save_path}")
+
+    print("\n--- Communication Costs ---")
+    compute_communication_costs(cfg)
 
 
 if __name__ == "__main__":
