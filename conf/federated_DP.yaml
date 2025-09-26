@@ -1,0 +1,7 @@
+defaults:
+  - federated
+
+flower:
+  dp:
+    noise_multiplier: 1.0
+    clipping_threshold: 1.0

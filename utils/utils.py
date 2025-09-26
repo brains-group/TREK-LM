@@ -9,7 +9,7 @@ import textwrap
 from logging import LogRecord
 from typing import List
 import yaml
-
+import os
 import matplotlib.pyplot as plt
 from flwr_datasets import FederatedDataset
 from omegaconf import DictConfig, OmegaConf
@@ -61,11 +61,34 @@ console_handlerv2.setLevel(logging.INFO)
 FLOWER_LOGGER.addHandler(console_handlerv2)
 
 
-def get_config(config_path: str) -> DictConfig:
-    """Loads a YAML config file into a DictConfig object."""
+def get_config(config_path: str, overrides: List[str] = None) -> DictConfig:
+    """Loads a YAML config file into a DictConfig object, handling inheritance."""
+    # Load the main configuration file
     with open(config_path, "r") as f:
-        cfg = yaml.safe_load(f)
-    return OmegaConf.create(cfg)
+        cfg = OmegaConf.create(yaml.safe_load(f))
+
+    # Handle 'defaults' for inheritance
+    if "defaults" in cfg:
+        config_dir = os.path.dirname(config_path)
+        for default_entry in cfg.defaults:
+            if isinstance(default_entry, str):
+                default_file_name = f"{default_entry}.yaml"
+                default_file_path = os.path.join(config_dir, default_file_name)
+                if os.path.exists(default_file_path):
+                    with open(default_file_path, "r") as df:
+                        default_cfg = OmegaConf.create(yaml.safe_load(df))
+                        cfg = OmegaConf.merge(default_cfg, cfg)
+                else:
+                    print(f"Warning: Default config file not found: {default_file_path}")
+        # Remove the defaults section after merging
+        del cfg["defaults"]
+
+    # Apply command-line overrides if provided
+    if overrides:
+        override_cfg = OmegaConf.from_dotlist(overrides)
+        cfg = OmegaConf.merge(cfg, override_cfg)
+
+    return cfg
 
 
 def _add_args_from_config(parser, config, parent_key=""):
@@ -80,7 +103,7 @@ def _add_args_from_config(parser, config, parent_key=""):
             parser.add_argument(f"--{arg_name}", type=arg_type, default=value)
 
 
-def parse_args_with_config() -> (DictConfig, DictConfig):
+def parse_args_with_config() -> tuple[DictConfig, DictConfig]:
     """
     Parses command-line arguments, loading a config file and allowing overrides.
     Returns the final, merged config and the original config from the file.
@@ -91,17 +114,16 @@ def parse_args_with_config() -> (DictConfig, DictConfig):
     )
     args, remaining_argv = parser.parse_known_args()
 
+    # Load the configuration using the custom get_config, applying command-line overrides
+    cfg = get_config(args.cfg, remaining_argv)
+
+    # The original_cfg is the config without command-line overrides.
+    # We can get this by calling get_config again without overrides.
     original_cfg = get_config(args.cfg)
-    cfg = original_cfg.copy()
 
-    full_parser = argparse.ArgumentParser()
-    _add_args_from_config(full_parser, cfg)
-    full_parser.add_argument("--cfg", type=str, default=args.cfg)
-    final_args = full_parser.parse_args(remaining_argv)
-
-    override_cfg = OmegaConf.create(vars(final_args))
-    cfg = OmegaConf.merge(cfg, override_cfg)
+    # Add config_path to the final config for consistency with previous behavior
     cfg.config_path = args.cfg
+    original_cfg.config_path = args.cfg
 
     return cfg, original_cfg
 
@@ -181,4 +203,4 @@ def compute_communication_costs(config, comm_bw_mbps: float = 20):
     print(
         f"Total Communication costs (Finetuning): {2*num_rounds*num_clients_per_round*trainable_size} MB"
     )
-    print(f"Communication savings: {all_parameters/trainable:.1f}x")
+    print(f"Communication savings: {all_parameters/trainable:.1}x")
