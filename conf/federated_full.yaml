@@ -47,8 +47,8 @@ flower:
     num_rounds: 200
     sample_clients: 10
     client_resources:
-      num_cpus: 8
-      num_gpus: 1.0
-    dp:
-      noise_mult: 0.02
-      clip_norm: 0.5
+      num_cpus: 1
+      num_gpus: 1
+  # dp:
+  #   noise_multiplier: 1.0
+  #   clipping_threshold: 1.0

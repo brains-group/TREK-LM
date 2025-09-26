@@ -7,6 +7,7 @@ from typing import Dict, Tuple
 import flwr as fl
 from flwr.common import Context, Parameters
 from flwr.common.typing import NDArrays
+from flwr.server.strategy.aggregate import DPAggregator
 from peft import PeftModel, get_peft_model_state_dict
 from transformers import AutoModelForCausalLM
 
@@ -114,6 +115,16 @@ def main():
     )
 
     def server_fn(context: Context):
+        # If DP is enabled, create a DPAggregator
+        aggregator = None
+        if hasattr(cfg.flower, "dp") and cfg.flower.dp:
+            print("Differential Privacy is enabled.")
+            aggregator = DPAggregator(
+                noise_multiplier=cfg.flower.dp.noise_multiplier,
+                clipping_threshold=cfg.flower.dp.clipping_threshold,
+                num_clients_expected=cfg.flower.sample_clients,
+            )
+
         strategy = fl.server.strategy.FedAvg(
             min_available_clients=cfg.flower.num_clients,
             fraction_fit=cfg.flower.sample_clients / cfg.flower.num_clients,
@@ -128,6 +139,7 @@ def main():
                 start_round=start_round,
             ),
             initial_parameters=initial_parameters,
+            aggregator=aggregator,
         )
         server_config = fl.server.ServerConfig(
             num_rounds=cfg.flower.num_rounds - (start_round - 1),
