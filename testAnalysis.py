@@ -12,6 +12,24 @@ from tqdm import tqdm
 # Import the main functions from the scripts to be called
 from train_centralized import main as train_main
 from test import main as test_main
+from utils.utils import generate_deterministic_run_name, parse_args_with_config
+
+
+def get_run_path(argv):
+    """
+    Determines the save path for a training run based on command-line arguments.
+    """
+    original_argv = sys.argv
+    # The first argument is the script name, which is not used by parse_args_with_config
+    # but is expected to be present.
+    sys.argv = ["train_centralized.py"] + argv
+    try:
+        cfg, original_cfg = parse_args_with_config()
+        run_name = generate_deterministic_run_name(cfg, original_cfg)
+        save_path = f"./models/centralized/{run_name}"
+    finally:
+        sys.argv = original_argv
+    return save_path
 
 
 def run_in_memory(target_main, argv):
@@ -58,7 +76,10 @@ def main():
 
     user_counts = defaultdict(int)
     for datapoint in dataset:
-        user_match = re.search(r"The user's entity is represented by (\d+).", datapoint["prompt"][0]["content"])
+        user_match = re.search(
+            r"The user's entity is represented by (\d+).",
+            datapoint["prompt"][0]["content"],
+        )
         if user_match:
             user_counts[user_match.group(1)] += 1
 
@@ -76,35 +97,59 @@ def main():
 
         # --- Real Data Training and Testing ---
         print(f"Training on real data for User: {user_id}")
-        train_argv_real = ["--dataset_name", "movieKnowledgeGraphDataset", "--dataset_index", user_id]
+        train_argv_real = [
+            "--cfg",
+            "conf/centralized_full.yaml",
+            "--dataset.name",
+            "movieKnowledgeGraphDataset",
+            "--dataset_index",
+            user_id,
+        ]
         run_in_memory(train_main, train_argv_real)
 
         print(f"Testing on real data for User: {user_id}")
-        lora_path_real = f"./models/centralized/Qwen/Qwen3-0.6B/movieKnowledgeGraphDataset/{user_id}/"
+        lora_path_real = get_run_path(train_argv_real)
         latest_checkpoint_real = max(os.listdir(lora_path_real))
-        test_argv_real = ["--lora_path", os.path.join(lora_path_real, latest_checkpoint_real), "--user_id", user_id]
+        test_argv_real = [
+            "--lora_path",
+            os.path.join(lora_path_real, latest_checkpoint_real),
+            "--user_id",
+            user_id,
+        ]
         metrics_real, _ = run_in_memory(test_main, test_argv_real)
         for key, value in metrics_real.items():
             real_metrics_agg[key] += value
 
         # --- Synthetic Data Training and Testing ---
         print(f"Training on synthetic data for User: {user_id}")
-        train_argv_synth = ["--dataset_name", "movieKnowledgeGraphDatasetWithSyntheticData", "--dataset_index", user_id]
+        train_argv_synth = [
+            "--cfg",
+            "conf/centralized_full.yaml",
+            "--dataset.name",
+            "movieKnowledgeGraphDatasetWithSyntheticData",
+            "--dataset_index",
+            user_id,
+        ]
         run_in_memory(train_main, train_argv_synth)
 
         print(f"Testing on synthetic data for User: {user_id}")
-        lora_path_synth = f"./models/centralized/Qwen/Qwen3-0.6B/movieKnowledgeGraphDatasetWithSyntheticData/{user_id}/"
+        lora_path_synth = get_run_path(train_argv_synth)
         latest_checkpoint_synth = max(os.listdir(lora_path_synth))
-        test_argv_synth = ["--lora_path", os.path.join(lora_path_synth, latest_checkpoint_synth), "--user_id", user_id]
+        test_argv_synth = [
+            "--lora_path",
+            os.path.join(lora_path_synth, latest_checkpoint_synth),
+            "--user_id",
+            user_id,
+        ]
         metrics_synth, _ = run_in_memory(test_main, test_argv_synth)
         for key, value in metrics_synth.items():
             synth_metrics_agg[key] += value
 
     # Print final aggregated results
     num_selected_users = len(selected_users)
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     print(f"      Aggregated Analysis Results ({num_selected_users} users)")
-    print("="*40)
+    print("=" * 40)
 
     if num_selected_users > 0:
         print("\n--- Real Data Average Metrics ---")
@@ -115,7 +160,7 @@ def main():
         for key, value in sorted(synth_metrics_agg.items()):
             print(f"{key}: {value / num_selected_users:.4f}")
 
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
 
 
 if __name__ == "__main__":
