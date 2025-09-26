@@ -5,3 +5,4 @@ __pycache__
 movieKnowledgeGraphDataset/
 /data/*/*.json*
 backup/
+pyEnv.sh
