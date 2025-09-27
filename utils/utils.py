@@ -12,7 +12,8 @@ import yaml
 import os
 import matplotlib.pyplot as plt
 from flwr_datasets import FederatedDataset
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
+from hydra import compose, initialize
 from flwr.common.logger import (
     ConsoleHandler,
     console_handler,
@@ -61,32 +62,9 @@ console_handlerv2.setLevel(logging.INFO)
 FLOWER_LOGGER.addHandler(console_handlerv2)
 
 
-def get_config(config_path: str, overrides: List[str] = None) -> DictConfig:
-    """Loads a YAML config file into a DictConfig object, handling inheritance."""
-    # Load the main configuration file
-    with open(config_path, "r") as f:
-        cfg = OmegaConf.create(yaml.safe_load(f))
-
-    # Handle 'defaults' for inheritance
-    if "defaults" in cfg:
-        config_dir = os.path.dirname(config_path)
-        for default_entry in cfg.defaults:
-            if isinstance(default_entry, str):
-                default_file_name = f"{default_entry}.yaml"
-                default_file_path = os.path.join(config_dir, default_file_name)
-                if os.path.exists(default_file_path):
-                    with open(default_file_path, "r") as df:
-                        default_cfg = OmegaConf.create(yaml.safe_load(df))
-                        cfg = OmegaConf.merge(default_cfg, cfg)
-                else:
-                    print(f"Warning: Default config file not found: {default_file_path}")
-        # Remove the defaults section after merging
-        del cfg["defaults"]
-
-    # Apply command-line overrides if provided
-    if overrides:
-        override_cfg = OmegaConf.from_dotlist(overrides)
-        cfg = OmegaConf.merge(cfg, override_cfg)
+def get_config(config_name: str, overrides: List[str] = None):
+    with initialize(config_path="../conf", version_base="1.1"):
+        cfg = compose(config_name=config_name, overrides=overrides)
 
     return cfg
 
@@ -122,8 +100,10 @@ def parse_args_with_config() -> tuple[DictConfig, DictConfig]:
     original_cfg = get_config(args.cfg)
 
     # Add config_path to the final config for consistency with previous behavior
-    cfg.config_path = args.cfg
-    original_cfg.config_path = args.cfg
+    with open_dict(cfg):
+        cfg.config_path = args.cfg
+    with open_dict(original_cfg):
+        original_cfg.config_path = args.cfg
 
     return cfg, original_cfg
 
