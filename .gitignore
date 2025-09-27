@@ -6,3 +6,4 @@ movieKnowledgeGraphDataset/
 /data/*/*.json*
 backup/
 pyEnv.sh
+dataset_stats.txt

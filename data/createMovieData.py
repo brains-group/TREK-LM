@@ -9,7 +9,7 @@ from rdflib.namespace import RDF, RDFS
 from tqdm import tqdm  # Import tqdm
 
 # Add the parent directory to sys.path for local imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils import constants as C
 from utils.kg_creation import (
@@ -30,7 +30,7 @@ def main():
     print("Starting dataset creation process...")
     random.seed(1)
 
-    print("Loading movie dataset from \"community-datasets/re_dial\"...")
+    print('Loading movie dataset from "community-datasets/re_dial"...')
     movie_dataset = load_dataset("community-datasets/re_dial")
     dataset = movie_dataset["train"].to_dict()
     test_dataset = movie_dataset["test"].to_dict()
@@ -43,7 +43,9 @@ def main():
     print("Processing conversations to build knowledge graphs...")
 
     # Wrap the conversation processing loop with tqdm
-    for index in tqdm(range(len(dataset["conversationId"])), desc="Processing conversations"):
+    for index in tqdm(
+        range(len(dataset["conversationId"])), desc="Processing conversations"
+    ):
         movieMentions = {
             movie["movieId"]: movie["movieName"]
             for movie in dataset["movieMentions"][index]
@@ -189,7 +191,11 @@ def main():
         stats_file.write(f"Number of data points: {sumDataPoints}\n")
         stats_file.write(f"Number of positive data points: {sumPositiveDataPoints}\n")
         stats_file.write(f"Number of negative data points: {sumNegativeDataPoints}\n")
-        ratio = sumPositiveDataPoints/sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')
+        ratio = (
+            sumPositiveDataPoints / sumNegativeDataPoints
+            if sumNegativeDataPoints > 0
+            else float("inf")
+        )
         stats_file.write(f"Positive to Negative Ratio: {ratio}\n")
         stats_file.write(f"Number of culled users: {culledUsers}\n")
         stats_file.write(f"Number of culled datapoints: {culledDataPoints}\n")
@@ -217,7 +223,9 @@ def main():
 
         print("Generating synthetic data...")
         syntheticStartIndexes = {}
-        for user in tqdm(list(kg_dataset.keys()), desc="Generating synthetic data for users"):
+        for user in tqdm(
+            list(kg_dataset.keys()), desc="Generating synthetic data for users"
+        ):
             user_uri = get_user_uri(user)
             g = knowledge_graphs[user]
             syntheticStartIndexes[user] = (
@@ -229,7 +237,9 @@ def main():
 
             liked_movies = [
                 o
-                for s, p, o in g.triples((user_uri, get_relation_uri(C.LIKED_STRING), None))
+                for s, p, o in g.triples(
+                    (user_uri, get_relation_uri(C.LIKED_STRING), None)
+                )
             ]
             disliked_movies = [
                 o
@@ -238,7 +248,9 @@ def main():
                 )
             ]
 
-            def process_synthetic_generation(movies, label, should_remove_relations=True):
+            def process_synthetic_generation(
+                movies, label, should_remove_relations=True
+            ):
                 if not movies:
                     return
                 for _ in range(random.randint(0, len(movies))):
@@ -253,7 +265,9 @@ def main():
 
             process_synthetic_generation(liked_movies, True)
             process_synthetic_generation(disliked_movies, False)
-            process_synthetic_generation(all_movies, False, should_remove_relations=False)
+            process_synthetic_generation(
+                all_movies, False, should_remove_relations=False
+            )
 
         print("Recalculating stats after adding synthetic data...")
         # Recalculate stats after adding synthetic data
@@ -294,17 +308,25 @@ def main():
                 sumNegativeDataPoints += numDataPoints - sumChoices
 
         stats_file.write("\n--------- KG Dataset with Synthetic Data ---------\n")
-        stats_file.write("Number of culled datapoints: " + str(culledDataPoints) + "\n")
+        stats_file.write("Number of users: " + str(len(culledKGDataset)) + "\n")
         stats_file.write("Number of data points: " + str(sumDataPoints) + "\n")
-        stats_file.write("Number of positive data points: " + str(sumPositiveDataPoints) + "\n")
-        stats_file.write("Number of negative data points: " + str(sumNegativeDataPoints) + "\n")
-        ratio = sumPositiveDataPoints / sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')
+        stats_file.write(
+            "Number of positive data points: " + str(sumPositiveDataPoints) + "\n"
+        )
+        stats_file.write(
+            "Number of negative data points: " + str(sumNegativeDataPoints) + "\n"
+        )
+        ratio = (
+            sumPositiveDataPoints / sumNegativeDataPoints
+            if sumNegativeDataPoints > 0
+            else float("inf")
+        )
         stats_file.write("Positive to Negative Ratio: " + str(ratio) + "\n")
         stats_file.write("Number of culled users: " + str(culledUsers) + "\n")
         stats_file.write("Number of culled datapoints: " + str(culledDataPoints) + "\n")
 
         print("--------- KG Dataset with Synthetic Data ---------")
-        print("Number of culled datapoints: " + str(culledDataPoints))
+        print("Number of users: " + str(len(culledKGDataset)))
         print("Number of data points: " + str(sumDataPoints))
         print("Number of positive data points: " + str(sumPositiveDataPoints))
         print("Number of negative data points: " + str(sumNegativeDataPoints))
@@ -321,12 +343,16 @@ def main():
         nonFederatedSyntheticDataset = [
             item for sublist in culledKGDataset.values() for item in sublist
         ]
-        with open("nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
+        with open(
+            "nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData.json", "w"
+        ) as f:
             json.dump(nonFederatedSyntheticDataset, f, indent=4)
         print("KG dataset with synthetic data saved.")
 
         stats_file.write("\n--------- KG Test Dataset ---------\n")
-        stats_file.write("Number of data points: " + str(len(realBenchmarkDataset)) + "\n")
+        stats_file.write(
+            "Number of data points: " + str(len(realBenchmarkDataset)) + "\n"
+        )
 
         print("--------- KG Test Dataset ---------")
         print("Number of data points: " + str(len(realBenchmarkDataset)))
@@ -336,7 +362,9 @@ def main():
         print("KG test dataset saved.")
 
         stats_file.write("\n--------- KG Synthetic Test Dataset ---------\n")
-        stats_file.write("Number of data points: " + str(len(syntheticBenchmarkDataset)) + "\n")
+        stats_file.write(
+            "Number of data points: " + str(len(syntheticBenchmarkDataset)) + "\n"
+        )
 
         print("--------- KG Synthetic Test Dataset ---------")
         print("Number of data points: " + str(len(syntheticBenchmarkDataset)))
