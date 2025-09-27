@@ -1,10 +1,14 @@
+import sys
+import os
 from itertools import chain
 import json
-import os
 import random
 from datasets import load_dataset
 from rdflib import Graph, Literal
 from rdflib.namespace import RDF, RDFS
+
+# Add the parent directory to sys.path for local imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils import constants as C
 from utils.kg_creation import (
