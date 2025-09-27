@@ -12,7 +12,6 @@ model:
   quantization: 4 # 8 or 4 if you want to do quantization with BitsAndBytes
   gradient_checkpointing: True
   use_fast_tokenizer: False
-  response_template: "<|im_start|>assistant"
   lora:
     peft_lora_r: 16
     peft_lora_alpha: 64
@@ -33,7 +32,6 @@ train:
     gradient_accumulation_steps: 1
     logging_steps: 10
     num_train_epochs: 3
-    max_steps: 10
     report_to: null
     save_steps: 1000
     save_total_limit: 10

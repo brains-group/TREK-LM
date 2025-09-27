@@ -5,9 +5,13 @@ from transformers import TrainerCallback, TrainerState, TrainerControl
 from transformers.trainer_utils import get_last_checkpoint
 
 from utils.data import load_centralized_dataset
-from utils.models import get_model, get_tokenizer_and_data_collator
+from utils.models import get_model, get_tokenizer
 from utils.training import calculate_kto_weights, set_seed
-from utils.utils import parse_args_with_config, print_config, generate_deterministic_run_name
+from utils.utils import (
+    parse_args_with_config,
+    print_config,
+    generate_deterministic_run_name,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -47,7 +51,9 @@ def main():
 
     # Check if training is already complete
     if os.path.exists(os.path.join(save_path, "training_complete.txt")):
-        print(f"Training already complete for this configuration. Skipping run. Path: {save_path}")
+        print(
+            f"Training already complete for this configuration. Skipping run. Path: {save_path}"
+        )
         return
 
     # Check for last checkpoint
@@ -59,15 +65,13 @@ def main():
         resume_from_checkpoint = None
         os.makedirs(save_path, exist_ok=True)
 
-
     # Load dataset and tokenizer
     dataset_path = cfg.dataset.path.format(cfg.dataset.name)
     dataset = load_centralized_dataset(dataset_path, cfg.get("dataset_index", None))
-    tokenizer, data_collator = get_tokenizer_and_data_collator(
+    tokenizer = get_tokenizer(
         cfg.model.name,
         cfg.model.use_fast_tokenizer,
         cfg.train.padding_side,
-        cfg.model.response_template,
     )
 
     model = get_model(cfg.model)
@@ -77,22 +81,22 @@ def main():
     desirable_weight, undesirable_weight = calculate_kto_weights(
         dataset, desirable_prompt_weight, undesirable_prompt_weight
     )
-    print(f"Desirable weight: {desirable_weight:.2f}, Undesirable weight: {undesirable_weight:.2f}")
+    print(
+        f"Desirable weight: {desirable_weight:.2f}, Undesirable weight: {undesirable_weight:.2f}"
+    )
 
     training_args = KTOConfig(
         **cfg.train.training_arguments,
         output_dir=save_path,
         desirable_weight=desirable_weight,
         undesirable_weight=undesirable_weight,
-        seed=cfg.seed,
     )
 
     trainer = KTOTrainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
+        processing_class=tokenizer,
         callbacks=[CompletionCallback()],
     )
 

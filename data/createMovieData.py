@@ -1,12 +1,13 @@
 import sys
 import os
-from itertools import chain
 import json
 import random
 from datasets import load_dataset
-from rdflib import Graph, Literal
-from rdflib.namespace import RDF, RDFS
+from rdflib import Graph
+from rdflib.namespace import RDF
 from tqdm import tqdm  # Import tqdm
+
+from utils.models import get_tokenizer
 
 # Add the parent directory to sys.path for local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -14,11 +15,50 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from utils import constants as C
 from utils.kg_creation import (
     add_data_point,
+    format_movie_completion,
     generate_synthetic_completion,
     preface_turn,
     update_user_kg,
 )
 from utils.uri_helpers import get_movie_uri, get_relation_uri, get_user_uri
+
+
+def find_longest_tokenized_prompt(dataset, tokenizer, dataset_name):
+    longest_prompt_text = ""
+    max_token_length = 0
+
+    print(f"\nAnalyzing {dataset_name} for longest tokenized prompt...")
+
+    # Iterate through users if it's a federated dataset (dict of lists)
+    if isinstance(dataset, dict):
+        all_data_points = [item for sublist in dataset.values() for item in sublist]
+    # Otherwise, assume it's a non-federated or benchmark dataset (list of dicts)
+    else:
+        all_data_points = dataset
+
+    for data_point in tqdm(
+        all_data_points, desc=f"Tokenizing prompts in {dataset_name}"
+    ):
+        prompt_messages = data_point[C.PROMPT_STRING]
+        current_prompt_text = " ".join(
+            [msg[C.CONTENT_STRING] for msg in prompt_messages]
+        )
+
+        # Only tokenize if the current prompt is longer in characters than the previous longest
+        if len(current_prompt_text) > len(longest_prompt_text):
+            tokenized_length = len(tokenizer.encode(current_prompt_text))
+            if tokenized_length > max_token_length:
+                max_token_length = tokenized_length
+                longest_prompt_text = current_prompt_text
+
+    if max_token_length > 0:
+        print(
+            f"Longest tokenized prompt in {dataset_name} (tokens): {max_token_length}"
+        )
+        print(f"Longest prompt text (first 200 chars): {longest_prompt_text[:200]}...")
+    else:
+        print(f"No prompts found in {dataset_name}.")
+    return max_token_length
 
 
 def main():
@@ -37,6 +77,11 @@ def main():
     for key in dataset:
         dataset[key].extend(test_dataset[key])
     print(f"Loaded {len(dataset['conversationId'])} conversations.")
+
+    # Initialize Qwen3 tokenizer
+    print("Loading Qwen3 tokenizer...")
+    tokenizer = get_tokenizer("Qwen/Qwen3-0.6B", use_fast=False, padding_side="left")
+    print("Qwen3 tokenizer loaded.")
 
     knowledge_graphs = {}
     kg_dataset = {}
@@ -116,7 +161,7 @@ def main():
                 ]
                 if not truncatedPrompt:
                     break
-                goodMovies, goals, badMovies = "", [], ""
+                good_movie_names, bad_movie_names = [], []
                 for movieId, movieName in moviesAdded:
                     movie_uri = get_movie_uri(movieName)
                     try:
@@ -127,21 +172,18 @@ def main():
                     isGood = not dupe and questions[movieId][C.LIKED_STRING] != 0
 
                     if isGood:
-                        goodMovies += f"- {movieName}\n"
-                        goals.append(
-                            movieName[: movieName.rfind(" ")]
-                            if movieName.endswith(")")
-                            else movieName
-                        )
+                        good_movie_names.append(movieName)
                     else:
-                        badMovies += f"{movieName} "
+                        bad_movie_names.append(movieName)
                     update_user_kg(g, user_uri, movieName, questions[movieId], True)
 
-                if goodMovies:
+                if good_movie_names:
+                    goodMovies, goals = format_movie_completion(good_movie_names, True)
                     add_data_point(
                         kg_dataset, userId, truncatedPrompt, goodMovies, True, goals
                     )
-                if badMovies:
+                if bad_movie_names:
+                    badMovies, _ = format_movie_completion(bad_movie_names, False)
                     add_data_point(
                         kg_dataset, userId, truncatedPrompt, badMovies, False
                     )
@@ -210,6 +252,14 @@ def main():
         )
         print(f"Number of culled users: {culledUsers}")
         print(f"Number of culled datapoints: {culledDataPoints}")
+
+        # Analyze base KG dataset for longest tokenized prompt
+        base_kg_longest_tokens = find_longest_tokenized_prompt(
+            culledKGDataset, tokenizer, "Base KG Dataset"
+        )
+        stats_file.write(
+            f"Longest tokenized prompt (Base KG Dataset): {base_kg_longest_tokens}\n"
+        )
 
         print("Saving base KG dataset to JSON files...")
         with open("movieKnowledgeGraphDataset.json", "w") as f:
@@ -337,6 +387,14 @@ def main():
         print("Number of culled users: " + str(culledUsers))
         print("Number of culled datapoints: " + str(culledDataPoints))
 
+        # Analyze KG dataset with synthetic data for longest tokenized prompt
+        synthetic_kg_longest_tokens = find_longest_tokenized_prompt(
+            culledKGDataset, tokenizer, "KG Dataset with Synthetic Data"
+        )
+        stats_file.write(
+            f"Longest tokenized prompt (KG Dataset with Synthetic Data): {synthetic_kg_longest_tokens}\n"
+        )
+
         print("Saving KG dataset with synthetic data to JSON files...")
         with open("movieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
             json.dump(culledKGDataset, f, indent=4)
@@ -356,6 +414,14 @@ def main():
 
         print("--------- KG Test Dataset ---------")
         print("Number of data points: " + str(len(realBenchmarkDataset)))
+        # Analyze real benchmark dataset for longest tokenized prompt
+        real_benchmark_longest_tokens = find_longest_tokenized_prompt(
+            realBenchmarkDataset, tokenizer, "KG Test Dataset"
+        )
+        stats_file.write(
+            f"Longest tokenized prompt (KG Test Dataset): {real_benchmark_longest_tokens}\n"
+        )
+
         print("Saving KG test dataset to JSON file...")
         with open("movieKnowledgeGraphTestDataset.json", "w") as f:
             json.dump(realBenchmarkDataset, f, indent=4)
@@ -368,6 +434,14 @@ def main():
 
         print("--------- KG Synthetic Test Dataset ---------")
         print("Number of data points: " + str(len(syntheticBenchmarkDataset)))
+        # Analyze synthetic benchmark dataset for longest tokenized prompt
+        synthetic_benchmark_longest_tokens = find_longest_tokenized_prompt(
+            syntheticBenchmarkDataset, tokenizer, "KG Synthetic Test Dataset"
+        )
+        stats_file.write(
+            f"Longest tokenized prompt (KG Synthetic Test Dataset): {synthetic_benchmark_longest_tokens}\n"
+        )
+
         print("Saving KG synthetic test dataset to JSON file...")
         with open("movieKnowledgeGraphSyntheticTestDataset.json", "w") as f:
             json.dump(syntheticBenchmarkDataset, f, indent=4)

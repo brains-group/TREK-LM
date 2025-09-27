@@ -12,7 +12,7 @@ from peft import PeftModel, get_peft_model_state_dict
 from transformers import AutoModelForCausalLM
 
 from utils.data import load_federated_dataset
-from utils.models import get_tokenizer_and_data_collator, get_model
+from utils.models import get_tokenizer, get_model
 from utils.training import (
     backend_setup,
     fit_weighted_average,
@@ -103,11 +103,10 @@ def main():
     cfg.flower.num_clients = len(datasets)
 
     # Load dataset and tokenizer
-    tokenizer, _ = get_tokenizer_and_data_collator(
+    tokenizer = get_tokenizer(
         cfg.model.name,
         cfg.model.use_fast_tokenizer,
         cfg.train.padding_side,
-        cfg.model.response_template,
     )
 
     client_app = fl.client.ClientApp(

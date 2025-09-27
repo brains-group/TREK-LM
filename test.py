@@ -4,7 +4,7 @@ import os
 import re
 from tqdm import tqdm
 
-from utils.models import load_peft_model, get_tokenizer_and_data_collator
+from utils.models import load_peft_model, get_tokenizer
 
 
 def get_prompt_id(data_point):
@@ -47,7 +47,7 @@ def main():
 
     # Load model and tokenizer
     model = load_peft_model(args.base_model_path, args.lora_path)
-    tokenizer, _ = get_tokenizer_and_data_collator(
+    tokenizer = get_tokenizer(
         args.base_model_path, use_fast=False, padding_side="left"
     )
 
@@ -86,6 +86,7 @@ def main():
     true_positives, false_positives, false_negatives = 0, 0, 0
     hits = [0] * 10
     mrr = 0
+    ndcg = 0.0
     num_datapoints = 0
 
     for data_point in dataset:

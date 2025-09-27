@@ -38,6 +38,9 @@ COMPLETION_FORMAT_STRING = (
 # RDF Namespaces
 EX = "http://movie-recs.org/"
 REL = "http://movie-recs.org/relations/"
+RDFS_NS = "http://www.w3.org/2000/01/rdf-schema#"
+MOVIE_PREFIX = f"{EX}movie/"
+USER_PREFIX = f"{EX}user/"
 
 # Entity types
 USER_TYPE = URIRef(f"{EX}User")

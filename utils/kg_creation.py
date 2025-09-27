@@ -27,6 +27,9 @@ def preface_turn(user_uri, g):
     context = {
         "@vocab": C.EX,
         "rel": C.REL,
+        "rdfs": C.RDFS_NS,
+        "movie": C.MOVIE_PREFIX,
+        "user": C.USER_PREFIX,
         C.LIKED_STRING: f"rel:{C.LIKED_STRING}",
         C.DISLIKED_STRING: f"rel:{C.DISLIKED_STRING}",
         C.SEEN_STRING: f"rel:{C.SEEN_STRING}",
@@ -34,7 +37,7 @@ def preface_turn(user_uri, g):
         C.SUGGESTED_STRING: f"rel:{C.SUGGESTED_STRING}",
     }
     kg_json_str = g.serialize(format="json-ld", context=context)
-    return C.KG_PREFACE_STRING.format(user_uri, kg_json_str)
+    return C.KG_PREFACE_STRING.format(user_uri[(len(C.USER_PREFIX) - 1) :], kg_json_str)
 
 
 def update_user_kg(g, user_uri, movie_name, question, is_assistant_message=False):
@@ -94,7 +97,66 @@ def update_user_kg(g, user_uri, movie_name, question, is_assistant_message=False
         g.add((user_uri, new_relation, movie_uri))
 
 
-def add_data_point(kg_dataset, user_id, prompt, movies, label, goals=[]):
+def format_movie_completion(movie_names, is_positive):
+    """
+    Formats the movie completion string and generates goals for positive examples.
+
+    Args:
+        movie_names (list): A list of movie names.
+        is_positive (bool): Whether the completion is for a positive example.
+
+    Returns:
+        tuple: A tuple containing the formatted movie string and a list of goals.
+    """
+    movies_str = ""
+    goals = []
+    if is_positive:
+        for movie_name in movie_names:
+            movies_str += f"- {movie_name}\n"
+            goals.append(
+                movie_name[: movie_name.rfind(" ")]
+                if movie_name.endswith(")")
+                else movie_name
+            )
+    else:
+        for movie_name in movie_names:
+            movies_str += f"{movie_name} "
+
+    return movies_str, goals
+
+
+def create_data_point(prompt, movies_str, label, goals=None):
+    """
+    Creates a data point dictionary.
+
+    Args:
+        prompt (list): The conversation prompt.
+        movies_str (str): The movie completion string.
+        label (bool): The label for the data point (True for good, False for bad).
+        goals (list): A list of movie goals for positive examples.
+
+    Returns:
+        dict: The created data point.
+    """
+    completion_content = (
+        C.COMPLETION_FORMAT_STRING.format(movies_str) if label else movies_str
+    )
+    datapoint = {
+        C.PROMPT_STRING: prompt,
+        C.COMPLETION_STRING: [
+            {
+                C.CONTENT_STRING: completion_content,
+                C.ROLE_STRING: C.ASSISTANT_STRING,
+            }
+        ],
+        C.LABEL_STRING: label,
+    }
+    if goals is not None:
+        datapoint[C.GOAL_STRING] = goals
+    return datapoint
+
+
+def add_data_point(kg_dataset, user_id, prompt, movies, label, goals=None):
     """
     Adds a new data point to the knowledge graph dataset.
 
@@ -109,20 +171,8 @@ def add_data_point(kg_dataset, user_id, prompt, movies, label, goals=[]):
     if user_id not in kg_dataset:
         kg_dataset[user_id] = []
 
-    completion_content = C.COMPLETION_FORMAT_STRING.format(movies) if label else movies
-    kg_dataset[user_id].append(
-        {
-            C.PROMPT_STRING: prompt,
-            C.COMPLETION_STRING: [
-                {
-                    C.CONTENT_STRING: completion_content,
-                    C.ROLE_STRING: C.ASSISTANT_STRING,
-                }
-            ],
-            C.LABEL_STRING: label,
-            C.GOAL_STRING: goals,
-        }
-    )
+    data_point = create_data_point(prompt, movies, label, goals)
+    kg_dataset[user_id].append(data_point)
 
 
 def generate_synthetic_completion(
@@ -154,18 +204,9 @@ def generate_synthetic_completion(
     temp_g = Graph()
     temp_g += g
 
-    movies_str, goals = "", []
+    movie_names = []
     for movie_uri in sampled_movies:
-        movie_name = str(temp_g.value(subject=movie_uri, predicate=RDFS.label))
-        if label:
-            movies_str += f"- {movie_name}\n"
-            goals.append(
-                movie_name[: movie_name.rfind(" ")]
-                if movie_name.endswith(" ()")
-                else movie_name
-            )
-        else:
-            movies_str += f"{movie_name} "
+        movie_names.append(str(temp_g.value(subject=movie_uri, predicate=RDFS.label)))
 
         if should_remove_relations:
             for s, p, o in chain(
@@ -174,23 +215,13 @@ def generate_synthetic_completion(
             ):
                 temp_g.remove((s, p, o))
 
-    completion_content = (
-        C.COMPLETION_FORMAT_STRING.format(movies_str) if label else movies_str
-    )
-    return {
-        C.PROMPT_STRING: [
-            {
-                C.CONTENT_STRING: preface_turn(str(user_uri), temp_g),
-                C.ROLE_STRING: C.SYSTEM_STRING,
-            },
-            {C.CONTENT_STRING: C.REQUEST_STRING, C.ROLE_STRING: C.USER_STRING},
-        ],
-        C.COMPLETION_STRING: [
-            {
-                C.CONTENT_STRING: completion_content,
-                C.ROLE_STRING: C.ASSISTANT_STRING,
-            }
-        ],
-        C.LABEL_STRING: label,
-        C.GOAL_STRING: goals,
-    }
+    movies_str, goals = format_movie_completion(movie_names, label)
+
+    prompt = [
+        {
+            C.CONTENT_STRING: preface_turn(str(user_uri), temp_g),
+            C.ROLE_STRING: C.SYSTEM_STRING,
+        },
+        {C.CONTENT_STRING: C.REQUEST_STRING, C.ROLE_STRING: C.USER_STRING},
+    ]
+    return create_data_point(prompt, movies_str, label, goals)

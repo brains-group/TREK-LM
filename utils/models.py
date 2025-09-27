@@ -21,8 +21,6 @@ from transformers import (
 )
 from trl import DataCollatorForCompletionOnlyLM
 
-from .evaluation import benchmark_factory, benchmark_preparation, INSTRUCTIONS
-
 
 def get_model(model_cfg: DictConfig):
     """Load model with appropiate quantization config and
@@ -76,29 +74,18 @@ def get_model(model_cfg: DictConfig):
     return peft_model
 
 
-def get_tokenizer_and_data_collator(
-    model_name: str, use_fast: bool, padding_side: str, response_template: str
-):
-    """Gets the tokenizer and data collator for SFT training."""
+def get_tokenizer(model_name: str, use_fast: bool = False, padding_side: str = "left"):
+    """Gets the tokenizer."""
 
-    # From: https://huggingface.co/docs/trl/en/sft_trainer
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, use_fast=use_fast, padding_side=padding_side
     )
-
     if tokenizer.pad_token is None:
         tokenizer.pad_token = (
             tokenizer.bos_token if padding_side == "left" else tokenizer.eos_token
         )
-    response_template_with_context = response_template
-    response_template_ids = tokenizer.encode(
-        response_template_with_context, add_special_tokens=False
-    )[2:]
-    data_collator = DataCollatorForCompletionOnlyLM(
-        response_template_ids, tokenizer=tokenizer
-    )
 
-    return tokenizer, data_collator
+    return tokenizer
 
 
 def set_parameters(model, parameters) -> None:
