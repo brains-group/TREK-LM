@@ -4,10 +4,11 @@ import os
 import re
 from tqdm import tqdm
 
+from utils.evaluation import save_metrics_to_csv
 from utils.models import load_peft_model, get_tokenizer
 
 
-def get_prompt_id(data_point):
+def get_prompt_text(data_point):
     """Creates a unique ID for a data point based on its prompt content."""
     return data_point["prompt"][0]["content"]
 
@@ -20,6 +21,8 @@ def matches_user(prompt_id, user_id):
 
 def main():
     """Main function to run the evaluation of a model on a test dataset."""
+    MAX_NEW_TOKENS = 1024
+
     parser = argparse.ArgumentParser(description="Model evaluation script.")
     parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--lora_path", type=str, default=None)
@@ -31,10 +34,18 @@ def main():
     print(f"Running evaluation with arguments: {args}")
 
     # Determine model directory for saving predictions
-    model_dir = (
+    model_output_dir = (
         os.path.dirname(args.lora_path) if args.lora_path else args.base_model_path
     )
-    predictions_file = os.path.join(model_dir, "predictions.jsonl")
+    # Construct the new metrics directory path
+    metrics_base_dir = "./metrics"
+    relative_model_path = os.path.relpath(model_output_dir, start="./models")
+    output_dir = os.path.join(metrics_base_dir, relative_model_path)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    predictions_file = os.path.join(output_dir, "predictions.jsonl")
+    metrics_file = os.path.join(output_dir, "metrics.csv")
 
     # Load existing predictions if file exists
     completed_prompts = {}
@@ -47,9 +58,7 @@ def main():
 
     # Load model and tokenizer
     model = load_peft_model(args.base_model_path, args.lora_path)
-    tokenizer = get_tokenizer(
-        args.base_model_path, use_fast=False, padding_side="left"
-    )
+    tokenizer = get_tokenizer(args.base_model_path, use_fast=False, padding_side="left")
 
     # Load data
     with open(args.data_path, "r") as file:
@@ -58,12 +67,12 @@ def main():
     # Run evaluation loop
     with open(predictions_file, "a") as f_out:
         for data_point in tqdm(dataset, desc="Evaluating"):
-            prompt_id = get_prompt_id(data_point)
+            prompt_text = get_prompt_text(data_point)
 
-            if args.user_id and not matches_user(prompt_id, args.user_id):
+            if args.user_id and not matches_user(prompt_text, args.user_id):
                 continue
 
-            if prompt_id in completed_prompts:
+            if prompt_text in completed_prompts:
                 continue
 
             text = tokenizer.apply_chat_template(
@@ -71,57 +80,61 @@ def main():
             )
 
             model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
-            generated_ids = model.generate(**model_inputs, max_new_tokens=1024)
+            generated_ids = model.generate(
+                **model_inputs, max_new_tokens=MAX_NEW_TOKENS
+            )
             response = tokenizer.batch_decode(
                 generated_ids[:, model_inputs.input_ids.shape[1] :],
                 skip_special_tokens=True,
             )[0]
 
             # Save progress immediately
-            result = {"id": prompt_id, "response": response, "goal": data_point["goal"]}
+            result = {
+                "id": prompt_text,
+                "response": response,
+                "goal": data_point["goal"],
+            }
             f_out.write(json.dumps(result) + "\n")
-            completed_prompts[prompt_id] = response
+            completed_prompts[prompt_text] = response
 
     # Process all results for metrics
     true_positives, false_positives, false_negatives = 0, 0, 0
     hits = [0] * 10
     mrr = 0
-    ndcg = 0.0
     num_datapoints = 0
 
     for data_point in dataset:
-        prompt_id = get_prompt_id(data_point)
-        if prompt_id not in completed_prompts:
+        prompt_text = get_prompt_text(data_point)
+        if prompt_text not in completed_prompts:
             continue
 
-        if args.user_id and not matches_user(prompt_id, args.user_id):
+        if args.user_id and not matches_user(prompt_text, args.user_id):
             continue
 
-        num_datapoints += 1
-        response = completed_prompts[prompt_id]
+        response = completed_prompts[prompt_text]
+
+        # Make sure the model finished its response properly
+        endThinkString = "</think>"
+        endThinkIndex = response.rfind(endThinkString)
+        if endThinkIndex == -1:
+            print("Output Did not complete thinking")
+            continue
+        if (
+            len(tokenizer.encode(response, add_special_tokens=True))
+            > MAX_NEW_TOKENS - 4
+        ):
+            print("Output Did not complete after thinking")
+            continue
+
+        # Extract recommendations from the response
         recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
-        format_followed = len(recommendations) > 0
-        sub_response = "".join(recommendations) if format_followed else response
+        recommendations = [rec.strip() for rec in recommendations]
 
-        if format_followed:
-            false_positives += len(recommendations)
-
-        rank = -1
-        for goal in data_point["goal"]:
-            if goal in sub_response:
-                true_positives += 1
-                if format_followed:
-                    false_positives -= 1
-                    for i, rec in enumerate(
-                        recommendations[: (rank if rank >= 0 else len(recommendations))]
-                    ):
-                        if goal in rec:
-                            rank = i
-                else:
-                    rank = 0
-                    break
-            else:
-                false_negatives += 1
+        relevance = [1 if rec in data_point["goal"] else 0 for rec in recommendations]
+        true_positives += sum(relevance)
+        false_positives += len(relevance) - true_positives
+        false_negatives += len(data_point["goal"]) - true_positives
+        rank = relevance.index(1) if 1 in relevance else -1
 
         if rank >= 0:
             mrr += 1 / (rank + 1)
@@ -129,6 +142,8 @@ def main():
                 hits.extend([hits[-1]] * (len(recommendations) - len(hits)))
             for i in range(rank, len(hits)):
                 hits[i] += 1
+
+        num_datapoints += 1
 
     # Calculate and print final metrics
     metrics = {}
@@ -146,6 +161,10 @@ def main():
         mrr_score = mrr / num_datapoints
 
         metrics = {
+            "model": args.lora_path if args.lora_path else args.base_model_path,
+            "data": args.data_path,
+            "user_id": args.user_id,
+            "num_examples": num_datapoints,
             "Precision": precision,
             "Recall": recall,
             "MRR": mrr_score,
@@ -165,6 +184,8 @@ def main():
         print(f"| {'Hits@3':<12} | {metrics['Hits@3']:<18.4f} |")
         print(f"| {'Hits@10':<12} | {metrics['Hits@10']:<18.4f} |")
         print("=" * 36)
+
+        save_metrics_to_csv(metrics, metrics_file)
     else:
         print("No data points were evaluated.")
 
