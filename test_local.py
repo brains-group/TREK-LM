@@ -4,6 +4,7 @@ import os
 import random
 import re
 import sys
+import numpy as np
 from collections import defaultdict
 from contextlib import redirect_stdout
 from io import StringIO
@@ -14,6 +15,7 @@ from tqdm import tqdm
 from train_centralized import main as train_main
 from test import main as test_main
 from utils.utils import generate_deterministic_run_name, parse_args_with_config
+from utils.evaluation import save_metrics_to_csv
 
 
 def get_run_path(argv):
@@ -63,6 +65,42 @@ def run_in_memory(target_main, argv):
     return result, output
 
 
+def calculate_and_format_metrics(aggregated_metrics, num_selected_users):
+    final_metrics = {}
+
+    final_metrics["num_selected_users"] = num_selected_users
+
+    for key, values in aggregated_metrics.items():
+        # Skip non-numeric metrics or those that are already standard deviation/error
+        if (
+            not isinstance(values, list)
+            or not values
+            or not isinstance(values[0], float)
+            or "_SE" in key
+            or "_StdDev" in key
+        ):
+            continue
+
+        mean_val = np.mean(values)
+        final_metrics[key] = mean_val
+
+        # Calculate standard deviation for all metrics when aggregating across users
+        final_metrics[f"{key}_StdDev"] = np.std(values, ddof=1)
+
+    sorted_keys = sorted(
+        final_metrics.keys(),
+        key=lambda x: (
+            x.replace("_StdDev", ""),
+            "_StdDev" if "_StdDev" in x else "",
+        ),
+    )
+    for key in sorted_keys:
+        value = final_metrics[key]
+        print(f"{key}: {value:.4f}")
+
+    return final_metrics
+
+
 def main():
     """
     Main function to run the test analysis pipeline.
@@ -83,6 +121,17 @@ def main():
         type=int,
         default=10,
         help="Number of eligible users to select for analysis.",
+    )
+    parser.add_argument(
+        "--cfg",
+        type=str,
+        default="centralized",
+        help="Path to the configuration file (e.g., conf/centralized_full.yaml).",
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="movieKnowledgeGraphDatasetWithSyntheticData",
     )
     args = parser.parse_args()
 
@@ -111,8 +160,8 @@ def main():
     print(f"Selected users for analysis: {selected_users}")
 
     # Initialize result aggregators
-    real_metrics_agg = defaultdict(float)
-    synth_metrics_agg = defaultdict(float)
+    real_metrics_agg = defaultdict(list)
+    synth_metrics_agg = defaultdict(list)
 
     for user_id in tqdm(selected_users, desc="Analyzing Users"):
         print(f"\n----- Processing User: {user_id} -----")
@@ -121,9 +170,9 @@ def main():
         print(f"Training on real data for User: {user_id}")
         train_argv_real = [
             "--cfg",
-            "conf/centralized_full.yaml",
+            args.cfg,
             "--dataset.name",
-            "movieKnowledgeGraphDataset",
+            args.data,
             "--dataset_index",
             user_id,
         ]
@@ -140,7 +189,7 @@ def main():
         ]
         metrics_real, _ = run_in_memory(test_main, test_argv_real)
         for key, value in metrics_real.items():
-            real_metrics_agg[key] += value
+            real_metrics_agg[key].append(value)
 
         # --- Synthetic Data Training and Testing ---
         print(f"Training on synthetic data for User: {user_id}")
@@ -148,7 +197,7 @@ def main():
             "--cfg",
             "conf/centralized_full.yaml",
             "--dataset.name",
-            "movieKnowledgeGraphDatasetWithSyntheticData",
+            f"{args.data}WithSyntheticData",
             "--dataset_index",
             user_id,
         ]
@@ -165,7 +214,7 @@ def main():
         ]
         metrics_synth, _ = run_in_memory(test_main, test_argv_synth)
         for key, value in metrics_synth.items():
-            synth_metrics_agg[key] += value
+            synth_metrics_agg[key].append(value)
 
     # Print final aggregated results
     num_selected_users = len(selected_users)
@@ -175,12 +224,22 @@ def main():
 
     if num_selected_users > 0:
         print("\n--- Real Data Average Metrics ---")
-        for key, value in sorted(real_metrics_agg.items()):
-            print(f"{key}: {value / num_selected_users:.4f}")
+        real_final_metrics = calculate_and_format_metrics(
+            real_metrics_agg, args.num_selected_users
+        )
+        save_metrics_to_csv(
+            real_final_metrics,
+            f"./metrics/aggregated_real_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
+        )
 
         print("\n--- Synthetic Data Average Metrics ---")
-        for key, value in sorted(synth_metrics_agg.items()):
-            print(f"{key}: {value / num_selected_users:.4f}")
+        synth_final_metrics = calculate_and_format_metrics(
+            synth_metrics_agg, args.num_selected_users
+        )
+        save_metrics_to_csv(
+            synth_final_metrics,
+            f"./metrics/aggregated_synthetic_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
+        )
 
     print("\n" + "=" * 40)
 

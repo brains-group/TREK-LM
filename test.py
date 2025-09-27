@@ -189,9 +189,9 @@ def main():
         std_mrr = np.std(per_datapoint_mrr, ddof=1)
 
         metrics = {
+            "user_id": args.user_id,
             "model": args.lora_path if args.lora_path else args.base_model_path,
             "data": args.data_path,
-            "user_id": args.user_id,
             "num_examples": num_datapoints,
             "Precision": precision,
             "Precision_SE": se_precision,
