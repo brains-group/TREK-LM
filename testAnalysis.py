@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import random
@@ -68,6 +69,23 @@ def main():
     This script samples users, trains a model for each, runs evaluation,
     and aggregates the results.
     """
+    parser = argparse.ArgumentParser(
+        description="Analyze model performance across selected users."
+    )
+    parser.add_argument(
+        "--min_datapoints",
+        type=int,
+        default=10,
+        help="Minimum number of test datapoints for a user to be eligible.",
+    )
+    parser.add_argument(
+        "--num_selected_users",
+        type=int,
+        default=10,
+        help="Number of eligible users to select for analysis.",
+    )
+    args = parser.parse_args()
+
     random.seed(2025)
 
     # Load the test dataset to identify users
@@ -84,8 +102,12 @@ def main():
             user_counts[user_match.group(1)] += 1
 
     # Sample users
-    eligible_users = [user for user, count in user_counts.items() if count >= 10]
-    selected_users = random.sample(eligible_users, min(10, len(eligible_users)))
+    eligible_users = [
+        user for user, count in user_counts.items() if count >= args.min_datapoints
+    ]
+    selected_users = random.sample(
+        eligible_users, min(args.num_selected_users, len(eligible_users))
+    )
     print(f"Selected users for analysis: {selected_users}")
 
     # Initialize result aggregators
