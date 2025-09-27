@@ -1,0 +1,27 @@
+--------- Base KG Dataset ---------
+Number of users: 355
+Number of data points: 34800
+Number of positive data points: 22536
+Number of negative data points: 12264
+Positive to Negative Ratio: 1.837573385518591
+Number of culled users: 401
+Number of culled datapoints: 1729
+Longest tokenized prompt (Base KG Dataset): 26975
+
+--------- KG Dataset with Synthetic Data ---------
+Number of users: 512
+Number of data points: 67922
+Number of positive data points: 33698
+Number of negative data points: 34224
+Positive to Negative Ratio: 0.9846306685366993
+Number of culled users: 244
+Number of culled datapoints: 1510
+Longest tokenized prompt (KG Dataset with Synthetic Data): 26975
+
+--------- KG Test Dataset ---------
+Number of data points: 3603
+Longest tokenized prompt (KG Test Dataset): 26310
+
+--------- KG Synthetic Test Dataset ---------
+Number of data points: 5475
+Longest tokenized prompt (KG Synthetic Test Dataset): 26768

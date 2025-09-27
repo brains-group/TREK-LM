@@ -224,7 +224,7 @@ def main():
             sumNegativeDataPoints += numDataPoints - sumChoices
 
     # Prepare for outputting stats to a file
-    stats_filename = "dataset_stats.txt"
+    stats_filename = "movie_dataset_stats.txt"
     print(f"Outputting dataset statistics to {stats_filename}")
 
     with open(stats_filename, "w") as stats_file:
