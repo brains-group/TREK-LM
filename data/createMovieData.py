@@ -6,6 +6,7 @@ import random
 from datasets import load_dataset
 from rdflib import Graph, Literal
 from rdflib.namespace import RDF, RDFS
+from tqdm import tqdm  # Import tqdm
 
 # Add the parent directory to sys.path for local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -26,19 +27,23 @@ def main():
     This includes processing conversations, creating positive and negative examples,
     generating synthetic data, and saving datasets in various formats.
     """
+    print("Starting dataset creation process...")
     random.seed(1)
 
+    print("Loading movie dataset from \"community-datasets/re_dial\"...")
     movie_dataset = load_dataset("community-datasets/re_dial")
     dataset = movie_dataset["train"].to_dict()
     test_dataset = movie_dataset["test"].to_dict()
     for key in dataset:
         dataset[key].extend(test_dataset[key])
+    print(f"Loaded {len(dataset['conversationId'])} conversations.")
 
     knowledge_graphs = {}
     kg_dataset = {}
     print("Processing conversations to build knowledge graphs...")
 
-    for index in range(len(dataset["conversationId"])):
+    # Wrap the conversation processing loop with tqdm
+    for index in tqdm(range(len(dataset["conversationId"])), desc="Processing conversations"):
         movieMentions = {
             movie["movieId"]: movie["movieName"]
             for movie in dataset["movieMentions"][index]
@@ -153,7 +158,8 @@ def main():
         culledUsers,
     ) = (0, 0, 0, 0, 0)
 
-    for user in list(kg_dataset.keys()):
+    print("Culling and splitting dataset...")
+    for user in tqdm(list(kg_dataset.keys()), desc="Culling users"):
         removedItems = 0
         for index in range(len(kg_dataset[user])):
             if kg_dataset[user][index - removedItems][C.LABEL_STRING]:
@@ -173,131 +179,173 @@ def main():
             sumPositiveDataPoints += sumChoices
             sumNegativeDataPoints += numDataPoints - sumChoices
 
-    print("--------- Base KG Dataset ---------")
-    print(f"Number of users: {len(culledKGDataset)}")
-    print(f"Number of data points: {sumDataPoints}")
-    print(f"Number of positive data points: {sumPositiveDataPoints}")
-    print(f"Number of negative data points: {sumNegativeDataPoints}")
-    print(
-        f"Positive to Negative Ratio: {sumPositiveDataPoints/sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')}"
-    )
-    print(f"Number of culled users: {culledUsers}")
-    print(f"Number of culled datapoints: {culledDataPoints}")
+    # Prepare for outputting stats to a file
+    stats_filename = "dataset_stats.txt"
+    print(f"Outputting dataset statistics to {stats_filename}")
 
-    with open("movieKnowledgeGraphDataset.json", "w") as f:
-        json.dump(culledKGDataset, f, indent=4)
-    nonFederatedDataset = [
-        item for sublist in culledKGDataset.values() for item in sublist
-    ]
-    with open("nonFederatedMovieKnowledgeGraphDataset.json", "w") as f:
-        json.dump(nonFederatedDataset, f, indent=4)
+    with open(stats_filename, "w") as stats_file:
+        stats_file.write("--------- Base KG Dataset ---------\n")
+        stats_file.write(f"Number of users: {len(culledKGDataset)}\n")
+        stats_file.write(f"Number of data points: {sumDataPoints}\n")
+        stats_file.write(f"Number of positive data points: {sumPositiveDataPoints}\n")
+        stats_file.write(f"Number of negative data points: {sumNegativeDataPoints}\n")
+        ratio = sumPositiveDataPoints/sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')
+        stats_file.write(f"Positive to Negative Ratio: {ratio}\n")
+        stats_file.write(f"Number of culled users: {culledUsers}\n")
+        stats_file.write(f"Number of culled datapoints: {culledDataPoints}\n")
 
-    syntheticStartIndexes = {}
-    for user in kg_dataset.keys():
-        user_uri = get_user_uri(user)
-        g = knowledge_graphs[user]
-        syntheticStartIndexes[user] = (
-            len(list(g.triples((user_uri, None, None)))) - 1
-        )  # Exclude the user type triple
+        print("--------- Base KG Dataset ---------")
+        print(f"Number of users: {len(culledKGDataset)}")
+        print(f"Number of data points: {sumDataPoints}")
+        print(f"Number of positive data points: {sumPositiveDataPoints}")
+        print(f"Number of negative data points: {sumNegativeDataPoints}")
+        print(
+            f"Positive to Negative Ratio: {sumPositiveDataPoints/sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')}"
+        )
+        print(f"Number of culled users: {culledUsers}")
+        print(f"Number of culled datapoints: {culledDataPoints}")
 
-        # Get all movies the user has interacted with
-        all_movies = list(g.subjects(predicate=RDF.type, object=C.MOVIE_TYPE))
-
-        liked_movies = [
-            o
-            for s, p, o in g.triples((user_uri, get_relation_uri(C.LIKED_STRING), None))
+        print("Saving base KG dataset to JSON files...")
+        with open("movieKnowledgeGraphDataset.json", "w") as f:
+            json.dump(culledKGDataset, f, indent=4)
+        nonFederatedDataset = [
+            item for sublist in culledKGDataset.values() for item in sublist
         ]
-        disliked_movies = [
-            o
-            for s, p, o in g.triples(
-                (user_uri, get_relation_uri(C.DISLIKED_STRING), None)
-            )
+        with open("nonFederatedMovieKnowledgeGraphDataset.json", "w") as f:
+            json.dump(nonFederatedDataset, f, indent=4)
+        print("Base KG dataset saved.")
+
+        print("Generating synthetic data...")
+        syntheticStartIndexes = {}
+        for user in tqdm(list(kg_dataset.keys()), desc="Generating synthetic data for users"):
+            user_uri = get_user_uri(user)
+            g = knowledge_graphs[user]
+            syntheticStartIndexes[user] = (
+                len(list(g.triples((user_uri, None, None)))) - 1
+            )  # Exclude the user type triple
+
+            # Get all movies the user has interacted with
+            all_movies = list(g.subjects(predicate=RDF.type, object=C.MOVIE_TYPE))
+
+            liked_movies = [
+                o
+                for s, p, o in g.triples((user_uri, get_relation_uri(C.LIKED_STRING), None))
+            ]
+            disliked_movies = [
+                o
+                for s, p, o in g.triples(
+                    (user_uri, get_relation_uri(C.DISLIKED_STRING), None)
+                )
+            ]
+
+            def process_synthetic_generation(movies, label, should_remove_relations=True):
+                if not movies:
+                    return
+                for _ in range(random.randint(0, len(movies))):
+                    new_datapoint = generate_synthetic_completion(
+                        user_uri, g, movies, label, should_remove_relations
+                    )
+                    if new_datapoint:
+                        if label and random.random() < syntheticTestProportion:
+                            syntheticBenchmarkDataset.append(new_datapoint)
+                        else:
+                            kg_dataset[user].append(new_datapoint)
+
+            process_synthetic_generation(liked_movies, True)
+            process_synthetic_generation(disliked_movies, False)
+            process_synthetic_generation(all_movies, False, should_remove_relations=False)
+
+        print("Recalculating stats after adding synthetic data...")
+        # Recalculate stats after adding synthetic data
+        (
+            sumDataPoints,
+            sumPositiveDataPoints,
+            sumNegativeDataPoints,
+            culledDataPoints,
+            culledUsers,
+        ) = (0, 0, 0, 0, 0)
+        for user in tqdm(list(kg_dataset.keys()), desc="Recalculating stats"):
+            sumChoices = sum(entry[C.LABEL_STRING] for entry in kg_dataset[user])
+            numDataPoints = len(kg_dataset[user])
+            if numDataPoints < 10 or sumChoices == 0 or sumChoices == numDataPoints:
+                culledUsers += 1
+                culledDataPoints += numDataPoints
+                if syntheticStartIndexes.get(user, 0) > 0:
+                    realBenchmarkDataset.extend(
+                        [
+                            e
+                            for e in kg_dataset[user][: syntheticStartIndexes[user]]
+                            if e[C.LABEL_STRING]
+                        ]
+                    )
+                if syntheticStartIndexes.get(user, 0) < len(kg_dataset[user]):
+                    syntheticBenchmarkDataset.extend(
+                        [
+                            e
+                            for e in kg_dataset[user][syntheticStartIndexes[user] :]
+                            if e[C.LABEL_STRING]
+                        ]
+                    )
+                del kg_dataset[user]
+            else:
+                culledKGDataset[user] = kg_dataset[user]
+                sumDataPoints += numDataPoints
+                sumPositiveDataPoints += sumChoices
+                sumNegativeDataPoints += numDataPoints - sumChoices
+
+        stats_file.write("\n--------- KG Dataset with Synthetic Data ---------\n")
+        stats_file.write("Number of culled datapoints: " + str(culledDataPoints) + "\n")
+        stats_file.write("Number of data points: " + str(sumDataPoints) + "\n")
+        stats_file.write("Number of positive data points: " + str(sumPositiveDataPoints) + "\n")
+        stats_file.write("Number of negative data points: " + str(sumNegativeDataPoints) + "\n")
+        ratio = sumPositiveDataPoints / sumNegativeDataPoints if sumNegativeDataPoints > 0 else float('inf')
+        stats_file.write("Positive to Negative Ratio: " + str(ratio) + "\n")
+        stats_file.write("Number of culled users: " + str(culledUsers) + "\n")
+        stats_file.write("Number of culled datapoints: " + str(culledDataPoints) + "\n")
+
+        print("--------- KG Dataset with Synthetic Data ---------")
+        print("Number of culled datapoints: " + str(culledDataPoints))
+        print("Number of data points: " + str(sumDataPoints))
+        print("Number of positive data points: " + str(sumPositiveDataPoints))
+        print("Number of negative data points: " + str(sumNegativeDataPoints))
+        print(
+            "Positive to Negative Ratio: "
+            + str(sumPositiveDataPoints / sumNegativeDataPoints)
+        )
+        print("Number of culled users: " + str(culledUsers))
+        print("Number of culled datapoints: " + str(culledDataPoints))
+
+        print("Saving KG dataset with synthetic data to JSON files...")
+        with open("movieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
+            json.dump(culledKGDataset, f, indent=4)
+        nonFederatedSyntheticDataset = [
+            item for sublist in culledKGDataset.values() for item in sublist
         ]
+        with open("nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
+            json.dump(nonFederatedSyntheticDataset, f, indent=4)
+        print("KG dataset with synthetic data saved.")
 
-        def process_synthetic_generation(movies, label, should_remove_relations=True):
-            if not movies:
-                return
-            for _ in range(random.randint(0, len(movies))):
-                new_datapoint = generate_synthetic_completion(
-                    user_uri, g, movies, label, should_remove_relations
-                )
-                if new_datapoint:
-                    if label and random.random() < syntheticTestProportion:
-                        syntheticBenchmarkDataset.append(new_datapoint)
-                    else:
-                        kg_dataset[user].append(new_datapoint)
+        stats_file.write("\n--------- KG Test Dataset ---------\n")
+        stats_file.write("Number of data points: " + str(len(realBenchmarkDataset)) + "\n")
 
-        process_synthetic_generation(liked_movies, True)
-        process_synthetic_generation(disliked_movies, False)
-        process_synthetic_generation(all_movies, False, should_remove_relations=False)
+        print("--------- KG Test Dataset ---------")
+        print("Number of data points: " + str(len(realBenchmarkDataset)))
+        print("Saving KG test dataset to JSON file...")
+        with open("movieKnowledgeGraphTestDataset.json", "w") as f:
+            json.dump(realBenchmarkDataset, f, indent=4)
+        print("KG test dataset saved.")
 
-    # Recalculate stats after adding synthetic data
-    (
-        sumDataPoints,
-        sumPositiveDataPoints,
-        sumNegativeDataPoints,
-        culledDataPoints,
-        culledUsers,
-    ) = (0, 0, 0, 0, 0)
-    for user in list(kg_dataset.keys()):
-        sumChoices = sum(entry[C.LABEL_STRING] for entry in kg_dataset[user])
-        numDataPoints = len(kg_dataset[user])
-        if numDataPoints < 10 or sumChoices == 0 or sumChoices == numDataPoints:
-            culledUsers += 1
-            culledDataPoints += numDataPoints
-            if syntheticStartIndexes.get(user, 0) > 0:
-                realBenchmarkDataset.extend(
-                    [
-                        e
-                        for e in kg_dataset[user][: syntheticStartIndexes[user]]
-                        if e[C.LABEL_STRING]
-                    ]
-                )
-            if syntheticStartIndexes.get(user, 0) < len(kg_dataset[user]):
-                syntheticBenchmarkDataset.extend(
-                    [
-                        e
-                        for e in kg_dataset[user][syntheticStartIndexes[user] :]
-                        if e[C.LABEL_STRING]
-                    ]
-                )
-            del kg_dataset[user]
-        else:
-            culledKGDataset[user] = kg_dataset[user]
-            sumDataPoints += numDataPoints
-            sumPositiveDataPoints += sumChoices
-            sumNegativeDataPoints += numDataPoints - sumChoices
+        stats_file.write("\n--------- KG Synthetic Test Dataset ---------\n")
+        stats_file.write("Number of data points: " + str(len(syntheticBenchmarkDataset)) + "\n")
 
-    print("--------- KG Dataset with Synthetic Data ---------")
-    print("Number of culled datapoints: " + str(culledDataPoints))
-    print("Number of data points: " + str(sumDataPoints))
-    print("Number of positive data points: " + str(sumPositiveDataPoints))
-    print("Number of negative data points: " + str(sumNegativeDataPoints))
-    print(
-        "Positive to Negative Ratio: "
-        + str(sumPositiveDataPoints / sumNegativeDataPoints)
-    )
-    print("Number of culled users: " + str(culledUsers))
-    print("Number of culled datapoints: " + str(culledDataPoints))
+        print("--------- KG Synthetic Test Dataset ---------")
+        print("Number of data points: " + str(len(syntheticBenchmarkDataset)))
+        print("Saving KG synthetic test dataset to JSON file...")
+        with open("movieKnowledgeGraphSyntheticTestDataset.json", "w") as f:
+            json.dump(syntheticBenchmarkDataset, f, indent=4)
+        print("KG synthetic test dataset saved.")
 
-    with open("movieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
-        json.dump(culledKGDataset, f, indent=4)
-    nonFederatedSyntheticDataset = [
-        item for sublist in culledKGDataset.values() for item in sublist
-    ]
-    with open("nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
-        json.dump(nonFederatedSyntheticDataset, f, indent=4)
-
-    print("--------- KG Test Dataset ---------")
-    print("Number of data points: " + str(len(realBenchmarkDataset)))
-    with open("movieKnowledgeGraphTestDataset.json", "w") as f:
-        json.dump(realBenchmarkDataset, f, indent=4)
-    print("--------- KG Synthetic Test Dataset ---------")
-    print("Number of data points: " + str(len(syntheticBenchmarkDataset)))
-    with open("movieKnowledgeGraphSyntheticTestDataset.json", "w") as f:
-        json.dump(syntheticBenchmarkDataset, f, indent=4)
-
-    print("Dataset creation process finished.")
+    print("Dataset creation process finished. Statistics saved to " + stats_filename)
 
 
 if __name__ == "__main__":
