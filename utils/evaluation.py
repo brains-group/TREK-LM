@@ -19,11 +19,20 @@ def save_metrics_to_csv(metrics, output_file):
         "user_id",
         "num_examples",
         "Precision",
+        "Precision_SE",
         "Recall",
+        "Recall_SE",
+        "F1-Score",
+        "F1-Score_SE",
         "MRR",
+        "MRR_StdDev",
     ]
-    hits_keys = [k for k in metrics.keys() if k.startswith("Hits@")]
-    fieldnames.extend(hits_keys)
+    # Add Hits@k fields, sorted numerically
+    hits_keys = sorted([k for k in metrics.keys() if k.startswith("Hits@") and not k.endswith("_SE")],
+                       key=lambda x: int(x.split('@')[1]))
+    for k in hits_keys:
+        fieldnames.append(k)
+        fieldnames.append(f"{k}_SE")
 
     # Add any other keys from metrics that are not already in fieldnames
     # to handle cases where more metrics are added.
