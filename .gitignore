@@ -9,3 +9,4 @@ pyEnv.sh
 dataset_stats.txt
 *.out
 *.pkl
+data/*.txt
