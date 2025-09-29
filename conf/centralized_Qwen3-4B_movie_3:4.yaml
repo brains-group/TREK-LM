@@ -1,0 +1,5 @@
+defaults:
+  - centralized_Qwen3-0.6B_movie_3:4
+
+model:
+  name: "Qwen/Qwen3-4B"

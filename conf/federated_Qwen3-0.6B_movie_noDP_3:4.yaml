@@ -25,6 +25,8 @@ train:
   seq_length: 4096
   padding_side: "left"
   evaluate_split: false
+  desirable_prompt_weight: 3.0
+  undesirable_prompt_weight: 4.0
   training_arguments:
     output_dir: null # to be set by hydra
     learning_rate: null # to be set by the client

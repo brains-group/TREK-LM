@@ -1,0 +1,6 @@
+defaults:
+  - federated_Qwen3-0.6B_movie_noDP_3:4
+
+train:
+  desirable_prompt_weight: 4.0
+  undesirable_prompt_weight: 3.0

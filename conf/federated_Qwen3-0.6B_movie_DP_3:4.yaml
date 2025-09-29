@@ -1,5 +1,5 @@
 defaults:
-  - federated
+  - federated_Qwen3-0.6B_movie_noDP_3:4
 
 flower:
   dp:

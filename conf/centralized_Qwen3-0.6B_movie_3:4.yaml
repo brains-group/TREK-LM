@@ -2,9 +2,12 @@
 
 seed: 42
 
+defaults:
+  - centralized
+
 dataset:
   path: "./data/{}.json"
-  name: "nonFederatedMovieKnowledgeGraphDataset"
+  name: "nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData"
 
 model:
   name: "Qwen/Qwen3-0.6B"
@@ -20,6 +23,8 @@ train:
   save_every_round: 5
   seq_length: 4096
   padding_side: "left"
+  desirable_prompt_weight: 3.0
+  undesirable_prompt_weight: 4.0
   training_arguments:
     learning_rate: 5e-6
     per_device_train_batch_size: 16

@@ -1,0 +1,7 @@
+defaults:
+  - federated_Qwen3-0.6B_movie_noDP_3:4
+
+flower:
+  dp:
+    noise_multiplier: 0.5
+    clipping_threshold: 1.0

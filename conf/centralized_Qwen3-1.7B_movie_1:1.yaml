@@ -1,0 +1,6 @@
+defaults:
+  - centralized_Qwen3-1.7B_movie_3:4
+
+train:
+  desirable_prompt_weight: 1.0
+  undesirable_prompt_weight: 1.0
