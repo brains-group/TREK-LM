@@ -114,9 +114,10 @@ def format_movie_completion(movie_names, is_positive):
         for movie_name in movie_names:
             movies_str += f"- {movie_name}\n"
             goals.append(
-                movie_name[: movie_name.rfind(" ")]
-                if movie_name.endswith(")")
-                else movie_name
+                # movie_name[: movie_name.rfind(" ")]
+                # if movie_name.endswith(")")
+                # else movie_name
+                movie_name
             )
     else:
         for movie_name in movie_names:

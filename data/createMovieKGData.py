@@ -7,10 +7,11 @@ from rdflib import Graph
 from rdflib.namespace import RDF
 from tqdm import tqdm  # Import tqdm
 
-from utils.models import get_tokenizer
-
 # Add the parent directory to sys.path for local imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from utils.models import get_tokenizer
+from utils.data import find_longest_tokenized_prompt  # Import from utils.data
 
 from utils import constants as C
 from utils.kg_creation import (
@@ -21,44 +22,6 @@ from utils.kg_creation import (
     update_user_kg,
 )
 from utils.uri_helpers import get_movie_uri, get_relation_uri, get_user_uri
-
-
-def find_longest_tokenized_prompt(dataset, tokenizer, dataset_name):
-    longest_prompt_text = ""
-    max_token_length = 0
-
-    print(f"\nAnalyzing {dataset_name} for longest tokenized prompt...")
-
-    # Iterate through users if it's a federated dataset (dict of lists)
-    if isinstance(dataset, dict):
-        all_data_points = [item for sublist in dataset.values() for item in sublist]
-    # Otherwise, assume it's a non-federated or benchmark dataset (list of dicts)
-    else:
-        all_data_points = dataset
-
-    for data_point in tqdm(
-        all_data_points, desc=f"Tokenizing prompts in {dataset_name}"
-    ):
-        prompt_messages = data_point[C.PROMPT_STRING]
-        current_prompt_text = " ".join(
-            [msg[C.CONTENT_STRING] for msg in prompt_messages]
-        )
-
-        # Only tokenize if the current prompt is longer in characters than the previous longest
-        if len(current_prompt_text) > len(longest_prompt_text):
-            tokenized_length = len(tokenizer.encode(current_prompt_text))
-            if tokenized_length > max_token_length:
-                max_token_length = tokenized_length
-                longest_prompt_text = current_prompt_text
-
-    if max_token_length > 0:
-        print(
-            f"Longest tokenized prompt in {dataset_name} (tokens): {max_token_length}"
-        )
-        print(f"Longest prompt text (first 200 chars): {longest_prompt_text[:200]}...")
-    else:
-        print(f"No prompts found in {dataset_name}.")
-    return max_token_length
 
 
 def main():

@@ -21,7 +21,9 @@ backend_setup = {"logging_level": ERROR, "log_to_driver": False}
 
 
 def calculate_kto_weights(
-    dataset, desirable_prompt_weight: float = 3.0, undesirable_prompt_weight: float = 4.0
+    dataset,
+    desirable_prompt_weight: float = 3.0,
+    undesirable_prompt_weight: float = 4.0,
 ) -> Tuple[float, float]:
     """Calculates weights for KTO loss based on dataset composition."""
     desirable_weight, undesirable_weight = 1.0, 1.0
@@ -121,6 +123,7 @@ class FlowerClient(fl.client.NumPyClient):
             model=self.model,
             args=self.training_arguments,
             train_dataset=trainset,
+            processing_class=self.tokenizer,
             eval_dataset=evalset,
         )
 
@@ -177,15 +180,10 @@ def get_evaluate_fn(model_cfg, save_every_round, total_round, save_path, start_r
             return 0.0, {}
 
         # Save model checkpoint
-        if (
-            global_round == total_round
-            or global_round % save_every_round == 0
-        ):
+        if global_round == total_round or global_round % save_every_round == 0:
             model = get_model(model_cfg)
             set_parameters(model, parameters)
-            model.save_pretrained(
-                os.path.join(save_path, f"checkpoint-{global_round}")
-            )
+            model.save_pretrained(os.path.join(save_path, f"checkpoint-{global_round}"))
 
             # Save server state (current round)
             state = {"last_round": global_round}

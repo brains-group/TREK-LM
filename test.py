@@ -142,13 +142,14 @@ def main():
         # Extract recommendations from the response
         recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
         recommendations = [rec.strip() for rec in recommendations]
+        goals = [goal.strip() for goal in data_point["goal"]]
 
-        relevance = [1 if rec in data_point["goal"] else 0 for rec in recommendations]
+        relevance = [1 if rec in goals else 0 for rec in recommendations]
 
         single_true_positives = sum(relevance)
         true_positives += single_true_positives
         false_positives += len(relevance) - single_true_positives
-        false_negatives += len(data_point["goal"]) - single_true_positives
+        false_negatives += len(goals) - single_true_positives
 
         rank = relevance.index(1) if 1 in relevance else -1
         per_datapoint_mrr.append(1 / (rank + 1) if rank >= 0 else 0)
