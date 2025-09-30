@@ -90,7 +90,7 @@ def main():
             last_round = state["last_round"]
             print(f"Resuming from round {last_round + 1}")
             start_round = last_round + 1
-            checkpoint_path = os.path.join(save_path, f"checkpoint-{last_round}")
+            checkpoint_path = os.path.join(save_path, f"peft-{last_round}")
             if os.path.exists(checkpoint_path):
                 initial_parameters = get_initial_parameters(cfg.model, checkpoint_path)
             else:

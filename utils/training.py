@@ -183,7 +183,7 @@ def get_evaluate_fn(model_cfg, save_every_round, total_round, save_path, start_r
         if global_round == total_round or global_round % save_every_round == 0:
             model = get_model(model_cfg)
             set_parameters(model, parameters)
-            model.save_pretrained(os.path.join(save_path, f"checkpoint-{global_round}"))
+            model.save_pretrained(os.path.join(save_path, f"peft-{global_round}"))
 
             # Save server state (current round)
             state = {"last_round": global_round}

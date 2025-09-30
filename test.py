@@ -141,10 +141,22 @@ def main():
 
         # Extract recommendations from the response
         recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
+        if not recommendations:
+            continue
         recommendations = [rec.strip() for rec in recommendations]
         goals = [goal.strip() for goal in data_point["goal"]]
 
-        relevance = [1 if rec in goals else 0 for rec in recommendations]
+        relevance = [
+            (
+                1
+                if any(
+                    (goal[: goal.rfind(" ")] if goal.endswith(")") else goal) in rec
+                    for goal in goals
+                )
+                else 0
+            )
+            for rec in recommendations
+        ]
 
         single_true_positives = sum(relevance)
         true_positives += single_true_positives

@@ -35,8 +35,8 @@ train:
     logging_steps: 10
     num_train_epochs: 3
     report_to: null
-    save_steps: 1000
-    save_total_limit: 10
+    # save_steps: 1000
+    # save_total_limit: 10
     gradient_checkpointing: ${model.gradient_checkpointing}
     lr_scheduler_type: "constant"
     seed: ${seed}
@@ -44,8 +44,8 @@ train:
 
 flower:
     num_clients: null # to be set by length of dataset
-    num_rounds: 200
-    sample_clients: 10
+    num_rounds: 128
+    sample_clients: 4
     client_resources:
       num_cpus: 1
       num_gpus: 1

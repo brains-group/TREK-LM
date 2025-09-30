@@ -2,9 +2,6 @@
 
 seed: 42
 
-defaults:
-  - centralized
-
 dataset:
   path: "./data/{}.json"
   name: "nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData"

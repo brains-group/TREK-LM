@@ -112,7 +112,7 @@ def generate_deterministic_run_name(cfg: DictConfig, original_cfg: DictConfig) -
     """Generates a deterministic run name from the config file and overrides."""
     import os
 
-    config_name = os.path.splitext(os.path.basename(cfg.config_path))[0]
+    config_name = cfg.config_path
 
     overrides = []
 
