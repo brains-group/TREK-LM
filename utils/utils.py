@@ -169,7 +169,7 @@ def compute_communication_costs(config, comm_bw_mbps: float = 20):
     # print(f"In a {comm_bw_mbps} Mbps channel --> {}")
 
     num_rounds = config.flower.num_rounds
-    num_clients_per_round = int(config.flower.num_clients * config.flower.fraction_fit)
+    num_clients_per_round = int(config.flower.sample_clients)
     print(
         f"Federated Learning setting: "
         f"\n\tNumber of rounds: {num_rounds}"
