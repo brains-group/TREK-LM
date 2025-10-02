@@ -11,3 +11,4 @@ dataset_stats.txt
 *.pkl
 data/*.txt
 metrics/
+trainer_output/

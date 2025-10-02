@@ -136,11 +136,6 @@ def main():
         with open(recipeKGsPath, "rb") as file:
             recipeKGs = pickle.load(file)
 
-    recipeIDToIndex = {
-        next(recipeKG[: RDF.type : C.FOOD_TYPE]): index
-        for index, recipeKG in enumerate(recipeKGs)
-    }
-
     usersKGsPath = "./userKGs.pkl"
     if not os.path.exists(usersKGsPath):
 
@@ -191,11 +186,11 @@ def main():
 
     kg_dataset = {}
     synthetic_benchmark_dataset = []
-    synthetic_test_proportion = 1 / 3
+    synthetic_test_proportion = 1 / 10
 
     print("Generating synthetic data...")
     for user_index, user_kg in enumerate(
-        tqdm(userKGs), desc="Generating synthetic data for users"
+        tqdm(userKGs, desc="Generating synthetic data for users")
     ):
         if user_kg is None:
             continue
@@ -271,11 +266,12 @@ def main():
     for user in tqdm(list(kg_dataset.keys()), desc="Culling users"):
         sum_choices = sum(entry[C.LABEL_STRING] for entry in kg_dataset[user])
         num_data_points = len(kg_dataset[user])
-        if num_data_points < 10 or sum_choices == 0 or sum_choices == num_data_points:
+        if num_data_points < 20 or sum_choices == 0 or sum_choices == num_data_points:
             culled_users += 1
             culled_data_points += num_data_points
-        else:
+            synthetic_benchmark_dataset.extend(kg_dataset[user])
             del kg_dataset[user]
+        else:
             sum_data_points += num_data_points
             sum_positive_data_points += sum_choices
             sum_negative_data_points += num_data_points - sum_choices
@@ -346,8 +342,8 @@ def main():
 
         print("Saving KG synthetic test dataset to JSON file...")
         with open(
-            "movieKnowledgeGraphSyntheticTestDataset.json", "w"
-        ) as f:  # Reusing movie dataset name for consistency
+            "recipeKGTestDataset.json", "w"
+        ) as f:
             json.dump(synthetic_benchmark_dataset, f, indent=4)
         print("KG synthetic test dataset saved.")
 

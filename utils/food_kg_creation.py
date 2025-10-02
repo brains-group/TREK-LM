@@ -50,7 +50,7 @@ def preface_turn(user_uri, g):
         C.RELATION_RATING_PREFIX: f"rel:{C.RELATION_RATING_PREFIX}",
     }
     kg_json_str = g.serialize(format="json-ld", context=context)
-    return C.FOOD_KG_PREFACE_STRING.format(user_uri[(len(C.USER_PREFIX) - 1) :], kg_json_str)
+    return C.FOOD_KG_PREFACE_STRING.format(user_uri[(len(C.USER_PREFIX)) :], kg_json_str)
 
 
 def generate_synthetic_completion(
