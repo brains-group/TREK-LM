@@ -14,7 +14,11 @@ from tqdm import tqdm
 # Import the main functions from the scripts to be called
 from train_centralized import main as train_main
 from test import main as test_main
-from utils.utils import generate_deterministic_run_name, parse_args_with_config
+from utils.utils import (
+    generate_deterministic_run_name,
+    get_config,
+    parse_args_with_config,
+)
 from utils.evaluation import save_metrics_to_csv
 
 
@@ -125,13 +129,12 @@ def main():
     parser.add_argument(
         "--cfg",
         type=str,
-        default="centralized",
-        help="Path to the configuration file (e.g., conf/centralized_full.yaml).",
+        default="centralized_Qwen3-0.6B_movie_3:4",
     )
     parser.add_argument(
         "--data",
         type=str,
-        default="movieKnowledgeGraphDatasetWithSyntheticData",
+        default="movieKnowledgeGraphDataset",
     )
     args = parser.parse_args()
 
@@ -144,7 +147,7 @@ def main():
     user_counts = defaultdict(int)
     for datapoint in dataset:
         user_match = re.search(
-            r"The user's entity is represented by (\d+).",
+            r"The user's entity is represented by /?(\d+).",
             datapoint["prompt"][0]["content"],
         )
         if user_match:
@@ -163,6 +166,8 @@ def main():
     real_metrics_agg = defaultdict(list)
     synth_metrics_agg = defaultdict(list)
 
+    config = get_config(args.cfg)
+
     for user_id in tqdm(selected_users, desc="Analyzing Users"):
         print(f"\n----- Processing User: {user_id} -----")
 
@@ -171,10 +176,8 @@ def main():
         train_argv_real = [
             "--cfg",
             args.cfg,
-            "--dataset.name",
-            args.data,
-            "--dataset_index",
-            user_id,
+            f'dataset.name="{args.data}"',
+            f'+dataset_index="{user_id}"',
         ]
         run_in_memory(train_main, train_argv_real)
 
@@ -182,8 +185,11 @@ def main():
         lora_path_real = get_run_path(train_argv_real)
         latest_checkpoint_real = max(os.listdir(lora_path_real))
         test_argv_real = [
+            "--base_model_path",
+            config.model.name,
             "--lora_path",
-            os.path.join(lora_path_real, latest_checkpoint_real),
+            # os.path.join(lora_path_real, latest_checkpoint_real),
+            lora_path_real,
             "--user_id",
             user_id,
         ]
@@ -195,11 +201,9 @@ def main():
         print(f"Training on synthetic data for User: {user_id}")
         train_argv_synth = [
             "--cfg",
-            "conf/centralized_full.yaml",
-            "--dataset.name",
-            f"{args.data}WithSyntheticData",
-            "--dataset_index",
-            user_id,
+            args.cfg,
+            f'dataset.name="{args.data}WithSyntheticData"',
+            f'+dataset_index="{user_id}"',
         ]
         run_in_memory(train_main, train_argv_synth)
 
@@ -207,8 +211,11 @@ def main():
         lora_path_synth = get_run_path(train_argv_synth)
         latest_checkpoint_synth = max(os.listdir(lora_path_synth))
         test_argv_synth = [
+            "--base_model_path",
+            config.model.name,
             "--lora_path",
-            os.path.join(lora_path_synth, latest_checkpoint_synth),
+            # os.path.join(lora_path_synth, latest_checkpoint_synth),
+            lora_path_real,
             "--user_id",
             user_id,
         ]

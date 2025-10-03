@@ -16,7 +16,7 @@ def get_prompt_text(data_point):
 
 def matches_user(prompt_id, user_id):
     """Checks if the data point corresponds to the specified user ID."""
-    user_id_match = re.search(r"The user's entity is represented by (\d+).", prompt_id)
+    user_id_match = re.search(r"The user's entity is represented by /?(\d+).", prompt_id)
     return user_id_match and user_id_match.group(1) == user_id
 
 
