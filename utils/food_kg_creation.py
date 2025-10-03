@@ -26,13 +26,13 @@ def format_recipe_completion(recipe_names, is_positive):
         completion_text = C.COMPLETION_FORMAT_STRING
         goals = recipe_names
     else:
-        completion_text = ""
+        completion_text = "{}"
         goals = []
 
     completion = [
         {
-            C.CONTENT_STRING: C.FOOD_COMPLETION_FORMAT_STRING.format(
-                completion_text + "\n".join([f"- {name}" for name in recipe_names])
+            C.CONTENT_STRING: completion_text.format(
+                "\n".join([f"- {name}" for name in recipe_names])
             ),
             C.ROLE_STRING: C.ASSISTANT_STRING,
         }
@@ -50,7 +50,9 @@ def preface_turn(user_uri, g):
         C.RELATION_RATING_PREFIX: f"rel:{C.RELATION_RATING_PREFIX}",
     }
     kg_json_str = g.serialize(format="json-ld", context=context)
-    return C.FOOD_KG_PREFACE_STRING.format(user_uri[(len(C.USER_PREFIX)) :], kg_json_str)
+    return C.FOOD_KG_PREFACE_STRING.format(
+        user_uri[(len(C.USER_PREFIX)) :], kg_json_str
+    )
 
 
 def generate_synthetic_completion(
