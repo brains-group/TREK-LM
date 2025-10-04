@@ -79,7 +79,7 @@ def calculate_and_format_metrics(aggregated_metrics, num_selected_users):
         if (
             not isinstance(values, list)
             or not values
-            or not isinstance(values[0], float)
+            or not (isinstance(values[0], float) or values[0] == 0)
             or "_SE" in key
             or "_StdDev" in key
         ):
@@ -135,6 +135,16 @@ def main():
         "--data",
         type=str,
         default="movieKnowledgeGraphDataset",
+    )
+    parser.add_argument(
+        "--test_data",
+        type=str,
+        default="movieKnowledgeGraphTestDataset",
+    )
+    parser.add_argument(
+        "--num_test_datapoints",
+        type=str,
+        default=None,
     )
     args = parser.parse_args()
 
@@ -192,7 +202,11 @@ def main():
             lora_path_real,
             "--user_id",
             user_id,
+            "--data_path",
+            f"./data/{args.test_data}.json",
         ]
+        if args.num_test_datapoints:
+            test_argv_real += ["--max_datapoints", str(args.num_test_datapoints)]
         metrics_real, _ = run_in_memory(test_main, test_argv_real)
         for key, value in metrics_real.items():
             real_metrics_agg[key].append(value)
@@ -218,7 +232,11 @@ def main():
             lora_path_real,
             "--user_id",
             user_id,
+            "--data_path",
+            f"./data/{args.test_data}.json",
         ]
+        if args.num_test_datapoints:
+            test_argv_synth += ["--max_datapoints", str(args.num_test_datapoints)]
         metrics_synth, _ = run_in_memory(test_main, test_argv_synth)
         for key, value in metrics_synth.items():
             synth_metrics_agg[key].append(value)
@@ -237,6 +255,7 @@ def main():
         save_metrics_to_csv(
             real_final_metrics,
             f"./metrics/aggregated_real_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
+            True,
         )
 
         print("\n--- Synthetic Data Average Metrics ---")
@@ -246,6 +265,7 @@ def main():
         save_metrics_to_csv(
             synth_final_metrics,
             f"./metrics/aggregated_synthetic_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
+            True,
         )
 
     print("\n" + "=" * 40)
