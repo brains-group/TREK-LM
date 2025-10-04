@@ -1,0 +1,9 @@
+defaults:
+  - federated_Qwen3-0.6B_movie_noDP_3:4
+
+dataset:
+  name: "recipeKGDataset"
+
+flower:
+    num_rounds: 188
+    sample_clients: 5
