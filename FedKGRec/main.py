@@ -27,14 +27,14 @@ def ensureDir(dir_path):
 
 def get_filepath(dir_path):
     log_count = 0
-    file_path = os.path.join(dir_path, 'log{:d}.csv'.format(log_count))
+    file_path = os.path.join(dir_path, "log{:d}.csv".format(log_count))
     while os.path.exists(file_path):
         log_count += 1
-        file_path = os.path.join(dir_path, 'log{:d}.csv'.format(log_count))
+        file_path = os.path.join(dir_path, "log{:d}.csv".format(log_count))
     return file_path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # parse args
     torch.manual_seed(123)
     torch.cuda.manual_seed_all(123)
@@ -45,11 +45,29 @@ if __name__ == '__main__':
     show_topk = True
 
     args = args_parser()
-    args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
-    save_dir = 'log/{}/{}-{}epsilon_{}clip_{}R_{}C_{}K_{}E_{}B_/lr{}_agg-{}_dim{}_l2{}_hop{}_neigh{}_batch{}/'.format(
-        args.dataset, args.dp_mechanism, args.dp_epsilon, args.dp_clip, args.rounds, args.frac, args.num_users, args.local_ep,
-        args.local_bs, args.lr, args.aggregator, args.dim, args.l2_weight, args.n_hop, args.neighbor_sample_size,
-        args.batch_size)
+    args.device = torch.device(
+        "cuda:{}".format(args.gpu)
+        if torch.cuda.is_available() and args.gpu != -1
+        else "cpu"
+    )
+    save_dir = "log/{}/{}-{}epsilon_{}clip_{}R_{}C_{}K_{}E_{}B_/lr{}_agg-{}_dim{}_l2{}_hop{}_neigh{}_batch{}/".format(
+        args.dataset,
+        args.dp_mechanism,
+        args.dp_epsilon,
+        args.dp_clip,
+        args.rounds,
+        args.frac,
+        args.num_users,
+        args.local_ep,
+        args.local_bs,
+        args.lr,
+        args.aggregator,
+        args.dim,
+        args.l2_weight,
+        args.n_hop,
+        args.neighbor_sample_size,
+        args.batch_size,
+    )
     ensureDir(save_dir)
     args.log = get_filepath(save_dir)
 
@@ -81,11 +99,18 @@ if __name__ == '__main__':
     # root_path="../result/music/"
     root_path = "../result/{}/".format(args.dataset)
     plt_color = "orange"
-    plt_title = 'FedKGR_{}-{}epsilon-{}clip-{}lr on {}_{}R_{}C_{}K_{}E_{}B_'.format(args.dp_mechanism, args.dp_epsilon,
-                                                                           args.dp_clip, args.lr, args.dataset, args.rounds,
-                                                                           args.frac,
-                                                                           args.num_users, args.local_ep,
-                                                                           args.local_bs)
+    plt_title = "FedKGR_{}-{}epsilon-{}clip-{}lr on {}_{}R_{}C_{}K_{}E_{}B_".format(
+        args.dp_mechanism,
+        args.dp_epsilon,
+        args.dp_clip,
+        args.lr,
+        args.dataset,
+        args.rounds,
+        args.frac,
+        args.num_users,
+        args.local_ep,
+        args.local_bs,
+    )
     # load model
     model = KGNN(args, n_user, n_entity, n_relation, adj_entity, adj_relation)
     if torch.cuda.is_available():
@@ -96,7 +121,31 @@ if __name__ == '__main__':
     # copy weights得到全局模型权重参数
     w_glob = model.state_dict()
     # training loss and test accuracy
-    train_Loss, test_Loss, test_Accuracy, test_AUC, test_F1, results_list = [], [], [], [], [], []
+    (
+        train_Loss,
+        test_Loss,
+        test_Accuracy,
+        test_AUC,
+        test_F1,
+        test_Prec,
+        test_Rec,
+        test_MRR,
+        test_Hits,
+        test_STDs,
+        results_list,
+    ) = (
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
 
     # measure time
     start = time()
@@ -110,11 +159,18 @@ if __name__ == '__main__':
         time1 = time()
         for k in S_t:
             #       local_update = ClientUpdate(dataset=train_data_dict, batchSize=batch_size, learning_rate=lr, epochs=E, df=data_dict[k])
-            local_update = ClientUpdate(args, dataset=train_data,
-                                        idxs=iid_dict[k], dp_epsilon=dp_epsilon / (C * R),
-                                        dp_delta=dp_delta,
-                                        dp_mechanism=dp_mechanism, dp_clip=dp_clip)
-            weights, loss = local_update.train(args, train_data, ripple_set, model=copy.deepcopy(model))
+            local_update = ClientUpdate(
+                args,
+                dataset=train_data,
+                idxs=iid_dict[k],
+                dp_epsilon=dp_epsilon / (C * R),
+                dp_delta=dp_delta,
+                dp_mechanism=dp_mechanism,
+                dp_clip=dp_clip,
+            )
+            weights, loss = local_update.train(
+                args, train_data, ripple_set, model=copy.deepcopy(model)
+            )
 
             w_locals.append(copy.deepcopy(weights))
             local_loss.append(copy.deepcopy(loss))
@@ -130,13 +186,36 @@ if __name__ == '__main__':
         # 全局测试
         model.eval()
         # test_loss, test_auc, test_acc, test_f1, recall, ndcg = testing(args, model, ripple_set, train_data, test_data)
-        test_loss, test_auc, test_acc, test_f1= testing(args, model, ripple_set, train_data, test_data)
+        (
+            test_loss,
+            test_auc,
+            test_acc,
+            test_f1,
+            test_prec,
+            test_rec,
+            test_mrr,
+            test_hits,
+            test_stds,
+        ) = testing(args, model, ripple_set, train_data, test_data)
         time2 = time()  # 用于计算每一轮次的时间
 
-        ctr_log = 'Round %d | test auc: %.4f  test acc: %.4f  test f1: %.4f' % (curr_round, test_auc, test_acc, test_f1)
+        ctr_log = (
+            "Round %d | test auc: %.4f  test acc: %.4f  test f1: %.4f  test prec: %.4f  test rec: %.4f  test mrr: %.4f  test hits: %s  test stds: %s"
+            % (
+                curr_round,
+                test_auc,
+                test_acc,
+                test_f1,
+                test_prec,
+                test_rec,
+                test_mrr,
+                str(test_hits),
+                str(test_stds),
+            )
+        )
         print(ctr_log)
-        with open(args.log, 'a') as f:
-            f.write(ctr_log + '\n')
+        with open(args.log, "a") as f:
+            f.write(ctr_log + "\n")
 
         # topk_log = 'topk eval | recall: %s | ndcg: %s' % (
         #     (['%.4f' % r for r in recall]), ' '.join(['%.4f' % n for n in ndcg]))
@@ -154,13 +233,27 @@ if __name__ == '__main__':
         # results_list.append(
         #     [curr_round, round_time, loss_avg, test_loss, test_auc, test_acc, test_f1, recall_list, ndcg_list])
         results_list.append(
-            [curr_round, round_time, loss_avg, test_loss, test_auc, test_acc, test_f1])
+            [
+                curr_round,
+                round_time,
+                loss_avg,
+                test_loss,
+                test_auc,
+                test_acc,
+                test_f1,
+                test_prec,
+                test_rec,
+                test_mrr,
+                test_hits,
+                test_stds,
+            ]
+        )
 
         # print(
         #     f"Round: {curr_round}... \tTime:{round_time}... \tAverage Train Loss: {round(loss_avg, 5)}... \tTest Loss: {round(test_loss, 5)}... \tTest AUC: {round(test_auc, 5)}... \tTest Accuracy: {round(test_acc, 5)}... \tTest F1: {round(test_f1, 5)}... \tRecall@: {recall_list}... \tNDCG@:{ndcg_list}")
         print(
-            f"Round: {curr_round}... \tTime:{round_time}... \tAverage Train Loss: {round(loss_avg, 5)}... \tTest Loss: {round(test_loss, 5)}... \tTest AUC: {round(test_auc, 5)}... \tTest Accuracy: {round(test_acc, 5)}... \tTest F1: {round(test_f1, 5)}")
-
+            f"Round: {curr_round}... \tTime:{round_time}... \tAverage Train Loss: {round(loss_avg, 5)}... \tTest Loss: {round(test_loss, 5)}... \tTest AUC: {round(test_auc, 5)}... \tTest Accuracy: {round(test_acc, 5)}... \tTest F1: {round(test_f1, 5)}\tTest Precision: {round(test_prec, 5)}\tTest Recall: {round(test_rec, 5)}\tTest MRR: {round(test_mrr, 5)}\tTest Hits: {test_hits}\tTest STDs: {test_stds}"
+        )
 
         # 供可视化用
         train_Loss.append(loss_avg)
@@ -168,17 +261,50 @@ if __name__ == '__main__':
         test_AUC.append(test_auc)
         test_Accuracy.append(test_acc)
         test_F1.append(test_f1)
+        test_Prec.append(test_prec)
+        test_Rec.append(test_rec)
+        test_MRR.append(test_mrr)
+        test_Hits.append(test_hits)
+        test_STDs.append(test_stds)
 
     # df = pd.DataFrame(data=results_list,
     #                   columns=["curr_round", "round time", "train loss_avg", "test loss", "test auc", "test acc",
     #                            "test f1",
     #                            "recall@", "ndcg@"])
-    df = pd.DataFrame(data=results_list,
-                      columns=["curr_round", "round time", "train loss_avg", "test loss", "test auc", "test acc",
-                               "test f1"])
+    df = pd.DataFrame(
+        data=results_list,
+        columns=[
+            "curr_round",
+            "round time",
+            "train loss_avg",
+            "test loss",
+            "test auc",
+            "test acc",
+            "test f1",
+            "test prec",
+            "test rec",
+            "test mrr",
+            "test hits",
+            "test stds",
+        ],
+    )
 
-    df.to_csv(root_path + 'FedKGR_{}-epsilon{}-clip{} on {}_{}lr_{}R_{}C_{}K_{}E_{}B.csv'.format(
-        args.dp_mechanism, args.dp_epsilon, args.dp_clip, args.dataset, args.lr, R, C, K, E, args.local_bs), index=None)
+    df.to_csv(
+        root_path
+        + "FedKGR_{}-epsilon{}-clip{} on {}_{}lr_{}R_{}C_{}K_{}E_{}B.csv".format(
+            args.dp_mechanism,
+            args.dp_epsilon,
+            args.dp_clip,
+            args.dataset,
+            args.lr,
+            R,
+            C,
+            K,
+            E,
+            args.local_bs,
+        ),
+        index=None,
+    )
 
     end = time()
 
@@ -186,18 +312,24 @@ if __name__ == '__main__':
     fig, ax = plt.subplots()
     x_axis = np.arange(1, R + 1)
     y_axis = np.array(train_Loss)
-    ax.plot(x_axis, y_axis, 'tab:' + plt_color)
-    ax.set(xlabel='Number of Rounds', ylabel='Train Loss',
-           title='FedKGR-{} on {}'.format(args.dp_mechanism, args.dataset))
+    ax.plot(x_axis, y_axis, "tab:" + plt_color)
+    ax.set(
+        xlabel="Number of Rounds",
+        ylabel="Train Loss",
+        title="FedKGR-{} on {}".format(args.dp_mechanism, args.dataset),
+    )
     ax.grid()
     # fig.savefig(root_path + plt_title + 'trainloss.png')
 
     fig0, ax0 = plt.subplots()
     x_axis0 = np.arange(1, R + 1)
     y_axis0 = np.array(test_Loss)
-    ax0.plot(x_axis0, y_axis0, 'tab:' + plt_color)
-    ax0.set(xlabel='Number of Rounds', ylabel='Test Loss',
-            title='FedKGR-{} on {}'.format(args.dp_mechanism, args.dataset))
+    ax0.plot(x_axis0, y_axis0, "tab:" + plt_color)
+    ax0.set(
+        xlabel="Number of Rounds",
+        ylabel="Test Loss",
+        title="FedKGR-{} on {}".format(args.dp_mechanism, args.dataset),
+    )
     ax0.grid()
     # fig0.savefig(root_path + plt_title + 'testloss.png')
 
@@ -206,7 +338,11 @@ if __name__ == '__main__':
     x_axis1 = np.arange(1, R + 1)
     y_axis1 = np.array(test_AUC)
     ax1.plot(x_axis1, y_axis1)
-    ax1.set(xlabel='Number of Rounds', ylabel='AUC', title='FedKGR-{} on {}'.format(args.dp_mechanism, args.dataset))
+    ax1.set(
+        xlabel="Number of Rounds",
+        ylabel="AUC",
+        title="FedKGR-{} on {}".format(args.dp_mechanism, args.dataset),
+    )
     ax1.grid()
     # fig1.savefig(root_path + plt_title + 'test_auc.png')
 
@@ -215,8 +351,11 @@ if __name__ == '__main__':
     x_axis2 = np.arange(1, R + 1)
     y_axis2 = np.array(test_Accuracy)
     ax2.plot(x_axis2, y_axis2)
-    ax2.set(xlabel='Number of Rounds', ylabel='Accuracy',
-            title='FedKGR-{} on {}'.format(args.dp_mechanism, args.dataset))
+    ax2.set(
+        xlabel="Number of Rounds",
+        ylabel="Accuracy",
+        title="FedKGR-{} on {}".format(args.dp_mechanism, args.dataset),
+    )
     ax2.grid()
     # fig2.savefig(root_path + plt_title + 'test_acc.png')
 
@@ -225,13 +364,16 @@ if __name__ == '__main__':
     x_axis3 = np.arange(1, R + 1)
     y_axis3 = np.array(test_F1)
     ax3.plot(x_axis3, y_axis3)
-    ax3.set(xlabel='Number of Rounds', ylabel='F1', title='FedKGR-{} on {}'.format(args.dp_mechanism, args.dataset))
+    ax3.set(
+        xlabel="Number of Rounds",
+        ylabel="F1",
+        title="FedKGR-{} on {}".format(args.dp_mechanism, args.dataset),
+    )
     ax3.grid()
     # fig3.savefig(root_path + plt_title + 'test_f1.png')
 
     print("Training Done!")
     print("Total time taken to Train: {}".format(end - start))
-
 
 
 # train(args, data_info, show_loss, show_topk)

@@ -12,3 +12,6 @@ dataset_stats.txt
 data/*.txt
 metrics/
 trainer_output/
+HAKE/data/
+KBGAT/data/
+FedKGRec/data/

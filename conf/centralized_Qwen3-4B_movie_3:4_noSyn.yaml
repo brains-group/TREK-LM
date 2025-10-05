@@ -1,0 +1,5 @@
+defaults:
+  - centralized_Qwen3-4B_movie_3:4
+
+dataset:
+  name: "nonFederatedMovieKnowledgeGraphDataset"

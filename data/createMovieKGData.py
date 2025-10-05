@@ -11,7 +11,10 @@ from tqdm import tqdm  # Import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.models import get_tokenizer
-from utils.data import find_longest_tokenized_prompt  # Import from utils.data
+from utils.data import (
+    adapt_HAKE_and_KBGAT_and_FedKGRec_data,
+    find_longest_tokenized_prompt,
+)  # Import from utils.data
 
 from utils import constants as C
 from utils.kg_creation import (
@@ -409,6 +412,23 @@ def main():
         with open("movieKnowledgeGraphSyntheticTestDataset.json", "w") as f:
             json.dump(syntheticBenchmarkDataset, f, indent=4)
         print("KG synthetic test dataset saved.")
+
+    print("Creating adapted datasets for KBGAT, HAKE, and FedKGRec...")
+
+    testTotal = len(realBenchmarkDataset) + len(syntheticBenchmarkDataset)
+    testProportion = testTotal / (len(nonFederatedSyntheticDataset) + testTotal)
+    validProportion = 17535 / 272116
+    adapt_HAKE_and_KBGAT_and_FedKGRec_data(
+        knowledge_graphs.values(),
+        testProportion,
+        validProportion,
+        "movieKnowledgeGraphDataset",
+        lambda triple: triple.replace(
+            "\thttp://movie-recs.org/relations/liked\t", "\t1\t"
+        ).replace("\thttp://movie-recs.org/relations/disliked\t", "\t0\t"),
+        lambda triple: "\thttp://movie-recs.org/relations/liked\t" in triple
+        or "\thttp://movie-recs.org/relations/disliked\t" in triple,
+    )
 
     print("Dataset creation process finished. Statistics saved to " + stats_filename)
 

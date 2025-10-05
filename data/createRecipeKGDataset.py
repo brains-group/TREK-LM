@@ -7,6 +7,7 @@ import json
 import random
 from rdflib import Graph, URIRef, Literal
 from rdflib.namespace import RDF
+import re
 from tqdm import tqdm
 
 # Add the parent directory to sys.path for local imports
@@ -14,7 +15,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils import constants as C
 from utils.models import get_tokenizer
-from utils.data import find_longest_tokenized_prompt
+from utils.data import (
+    adapt_HAKE_and_KBGAT_and_FedKGRec_data,
+    find_longest_tokenized_prompt,
+)
 from utils.food_kg_creation import (
     get_rating_uri,
     get_recipe_uri,
@@ -341,11 +345,23 @@ def main():
         )
 
         print("Saving KG synthetic test dataset to JSON file...")
-        with open(
-            "recipeKGTestDataset.json", "w"
-        ) as f:
+        with open("recipeKGTestDataset.json", "w") as f:
             json.dump(synthetic_benchmark_dataset, f, indent=4)
         print("KG synthetic test dataset saved.")
+
+    print("Creating adapted datasets for KBGAT, HAKE, and FedKGRec...")
+
+    testTotal = len(synthetic_benchmark_dataset)
+    testProportion = testTotal / (len(non_federated_dataset) + testTotal)
+    validProportion = 17535 / 272116
+    adapt_HAKE_and_KBGAT_and_FedKGRec_data(
+        userKGs,
+        testProportion,
+        validProportion,
+        "recipeKnowledgeGraphDataset",
+        lambda triple: re.sub(r"\trating(\d)\t", r"\t\1\t", triple),
+        lambda triple: re.search(r"\trating\d\t", triple),
+    )
 
     print("Dataset creation process finished. Statistics saved to " + stats_filename)
 

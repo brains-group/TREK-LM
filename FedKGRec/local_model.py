@@ -4,32 +4,39 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from sklearn.metrics import roc_auc_score,f1_score
+from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score
 from aggregator import Aggregator
 import random
 import math
 
 
-class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个参数
-    def __init__(self, args, n_user, n_entity, n_relation, adj_entity, adj_relation): # 初始化使用 args n_entity n_relation
+class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个参数
+    def __init__(
+        self, args, n_user, n_entity, n_relation, adj_entity, adj_relation
+    ):  # 初始化使用 args n_entity n_relation
         super(KGNN, self).__init__()
 
-        self._parse_args(args, n_user, n_entity, n_relation)  #RippleNet
-        self.user_emb = nn.Embedding(self.n_user, self.dim)   #KGCN
-        self.entity_emb = nn.Embedding(self.n_entity, self.dim) #RippleNet
-        self.relation_emb = nn.Embedding(self.n_relation, self.dim * self.dim) #RippleNet
-        self.relation_emb_GCN = nn.Embedding(self.n_relation, self.dim) #KGCN
-        self.transform_matrix = nn.Linear(self.dim, self.dim, bias=False) #RippleNet
-        self.criterion = nn.BCELoss() #RippleNet
-        self.transformerEncoderLayer = nn.TransformerEncoderLayer(d_model=self.dim, nhead=self.n_head, dim_feedforward=self.feed_f_dim)
-        self.transformerEncoder = nn.TransformerEncoder(num_layers=1, encoder_layer=self.transformerEncoderLayer)
+        self._parse_args(args, n_user, n_entity, n_relation)  # RippleNet
+        self.user_emb = nn.Embedding(self.n_user, self.dim)  # KGCN
+        self.entity_emb = nn.Embedding(self.n_entity, self.dim)  # RippleNet
+        self.relation_emb = nn.Embedding(
+            self.n_relation, self.dim * self.dim
+        )  # RippleNet
+        self.relation_emb_GCN = nn.Embedding(self.n_relation, self.dim)  # KGCN
+        self.transform_matrix = nn.Linear(self.dim, self.dim, bias=False)  # RippleNet
+        self.criterion = nn.BCELoss()  # RippleNet
+        self.transformerEncoderLayer = nn.TransformerEncoderLayer(
+            d_model=self.dim, nhead=self.n_head, dim_feedforward=self.feed_f_dim
+        )
+        self.transformerEncoder = nn.TransformerEncoder(
+            num_layers=1, encoder_layer=self.transformerEncoderLayer
+        )
         self.pooling = nn.AvgPool2d
         self.linear = nn.Linear(in_features=2 * self.dim, out_features=self.dim)
-        self.adj_entity = adj_entity #KGCN
-        self.adj_relation = adj_relation #KGCN
-        self.aggregator = Aggregator(self.batch_size, self.dim, args.aggregator) #KGCN
+        self.adj_entity = adj_entity  # KGCN
+        self.adj_relation = adj_relation  # KGCN
+        self.aggregator = Aggregator(self.batch_size, self.dim, args.aggregator)  # KGCN
         self._init_weight()
-
 
     def _parse_args(self, args, n_user, n_entity, n_relation):
         # RippleNet融合KGCN的参数列表
@@ -45,21 +52,21 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
         self.item_update_mode = args.item_update_mode
         self.using_all_hops = args.using_all_hops
         self.n_head = args.n_heads  # KGCN
-        self.feed_f_dim = args.feed_f_dim # KGCN
-        self.n_iter = args.n_iter # KGCN
-        self.batch_size = args.batch_size # KGCN
-        self.n_neighbor = args.neighbor_sample_size # KGCN
+        self.feed_f_dim = args.feed_f_dim  # KGCN
+        self.n_iter = args.n_iter  # KGCN
+        self.batch_size = args.batch_size  # KGCN
+        self.n_neighbor = args.neighbor_sample_size  # KGCN
 
     def _init_weight(self):
         stdv = 1.0 / math.sqrt(self.dim)
         for weight in self.parameters():
             weight.data.uniform_(-stdv, stdv)
-    
-    def forward( # RippleNet
+
+    def forward(  # RippleNet
         self,
         users: torch.LongTensor,
-        items: torch.LongTensor,   # 一个 batch 的items
-        labels: torch.LongTensor,   # 一个 batch 的labels
+        items: torch.LongTensor,  # 一个 batch 的items
+        labels: torch.LongTensor,  # 一个 batch 的labels
         memories_h: list,
         memories_r: list,
         memories_t: list,
@@ -70,7 +77,7 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
             self.batch_size = batch_size
 
         # [batch size, dim]
-        item_embeddings_ripple = self.entity_emb(items)   # RippleNet的item_embeddings
+        item_embeddings_ripple = self.entity_emb(items)  # RippleNet的item_embeddings
         h_emb_list = []
         r_emb_list = []
         t_emb_list = []
@@ -92,21 +99,25 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
 
         h_rep = self._history_extracting(h_emb_list)
         # user_embeddings = self._history_extracting(h_emb_list) #KGCN的user_embeddings
-        user_embedding_ripple = self.user_emb(users)  #原始RippleNet没有user表示
+        user_embedding_ripple = self.user_emb(users)  # 原始RippleNet没有user表示
 
         # entities: list   ele1 [batch size 1]    ele2 [batch size  8]   ele3 [batch size  64 ]  ele4 [batch size  512(64 * 8)]
-        entities, relations = self._get_neighbors(items)   #KGCN
+        entities, relations = self._get_neighbors(items)  # KGCN
 
-        #[batch dim ]
+        # [batch dim ]
         # item_embeddings = self._aggregate(h_rep, entities, relations)  #KGCN的item_embeddings
-        item_embeddings = self._aggregate(user_embedding_ripple, entities, relations)  #KGCN的item_embeddings
+        item_embeddings = self._aggregate(
+            user_embedding_ripple, entities, relations
+        )  # KGCN的item_embeddings
 
-        #o_list.append(u_history_embedding)
+        # o_list.append(u_history_embedding)
         # scores = self.predict(item_embeddings, o_list) #原始RippleNet
-        scores = self.predict(item_embeddings_ripple, user_embedding_ripple, item_embeddings, h_rep) #融合GCN之后
+        scores = self.predict(
+            item_embeddings_ripple, user_embedding_ripple, item_embeddings, h_rep
+        )  # 融合GCN之后
         # scores = self.predict(item_embeddings_ripple,item_embeddings,h_rep) #融合GCN之后
 
-        return_dict = self._compute_loss(  #RippleNet
+        return_dict = self._compute_loss(  # RippleNet
             scores, labels, h_emb_list, t_emb_list, r_emb_list
         )
         return_dict["scores"] = scores
@@ -140,7 +151,7 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
         return dict(base_loss=base_loss, kge_loss=kge_loss, l2_loss=l2_loss, loss=loss)
 
     def _key_addressing(self, h_emb_list, r_emb_list, t_emb_list, item_embeddings):
-        #原始RippleNet
+        # 原始RippleNet
         o_list = []
         for hop in range(self.n_hop):
             # [batch_size, n_memory, dim, 1]  h扩充一维 [1024 32 16 1]
@@ -169,7 +180,7 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
         return o_list, item_embeddings
 
     def _update_item_embedding(self, item_embeddings, o):
-        #原始RippleNet的更新物品向量函数
+        # 原始RippleNet的更新物品向量函数
         if self.item_update_mode == "replace":
             item_embeddings = o
         elif self.item_update_mode == "plus":
@@ -182,47 +193,61 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
             raise Exception("Unknown item updating mode: " + self.item_update_mode)
         return item_embeddings
 
-    def _history_extracting(self,h_emb_list):
-        #新添加的历史记录提取函数
-        #[batch_size n_memeres  dim]
-        history =h_emb_list[0]
-        #[1024 32 16 ]
+    def _history_extracting(self, h_emb_list):
+        # 新添加的历史记录提取函数
+        # [batch_size n_memeres  dim]
+        history = h_emb_list[0]
+        # [1024 32 16 ]
         history = self.transformerEncoder(history)
-        pool = self.pooling(kernel_size=(self.n_memory,1),stride=(self.n_memory,1))
+        pool = self.pooling(kernel_size=(self.n_memory, 1), stride=(self.n_memory, 1))
         h_rep = pool(history).squeeze()
         return h_rep
 
-    def predict(self, item_embedding_ripple, user_embeddings_ripple, item_embeddings, u_rep ):
-        #原始RippleNet predict(self, item_embeddings, o_list) 融合KGCN
-        item_rep = torch.cat((item_embedding_ripple,item_embeddings),dim=1)
+    def predict(
+        self, item_embedding_ripple, user_embeddings_ripple, item_embeddings, u_rep
+    ):
+        # 原始RippleNet predict(self, item_embeddings, o_list) 融合KGCN
+        item_rep = torch.cat((item_embedding_ripple, item_embeddings), dim=1)
         item_repsentation = self.linear(item_rep)
-        user_rep = torch.cat((user_embeddings_ripple,u_rep),dim=1)
+        user_rep = torch.cat((user_embeddings_ripple, u_rep), dim=1)
         user_representation = self.linear(user_rep)
         scores = (item_repsentation * user_representation).sum(dim=1)
         # [batch_size]
-        #scores = (item_embeddings * y).sum(dim=1)
+        # scores = (item_embeddings * y).sum(dim=1)
         return torch.sigmoid(scores)
 
     def evaluate(self, users, items, labels, memories_h, memories_r, memories_t):
-        #原始RippleNet的评估函数
-        return_dict = self.forward(users, items, labels, memories_h, memories_r, memories_t)
+        # 原始RippleNet的评估函数
+        return_dict = self.forward(
+            users, items, labels, memories_h, memories_r, memories_t
+        )
         scores = return_dict["scores"].detach().cpu().numpy()
         labels = labels.cpu().numpy()
         auc = roc_auc_score(y_true=labels, y_score=scores)
         predictions = [1 if i >= 0.5 else 0 for i in scores]
         f1 = f1_score(y_true=labels, y_pred=predictions)
+        precision = precision_score(y_true=labels, y_pred=predictions)
+        recall = recall_score(y_true=labels, y_pred=predictions)
         acc = np.mean(np.equal(predictions, labels))
-        return auc, acc, f1
+        try:
+            rank = np.where(np.equal(predictions, labels) == 1)[0][0] + 1
+            hits = [0 if index < rank else 1 for index in range(1, 11)]
+            mrr = 1 / rank
+        except:
+            rank = 0
+            hits = [0 for index in range(10)]
+            mrr = 0
+        return auc, acc, f1, precision, recall, mrr, hits
 
-    def _get_neighbors(self, items): #KGCN的函数
+    def _get_neighbors(self, items):  # KGCN的函数
         # KGCN中的获取领域节点的函数
-        '''
+        """
         v 是项目的批量大小的索引
         v: [batch_size, 1]
-        '''
-        #seeds [batch_size  1 ]
-        seeds =torch.unsqueeze(items,dim=1)
-        #entities: list[1]    #[batch_size  1]
+        """
+        # seeds [batch_size  1 ]
+        seeds = torch.unsqueeze(items, dim=1)
+        # entities: list[1]    #[batch_size  1]
         entities = [seeds]
 
         relations = []
@@ -231,7 +256,9 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
             n_e = self.adj_entity[entities[h].cpu()]
             n_r = self.adj_relation[entities[h].cpu()]
             neighbor_entities = torch.LongTensor(n_e).view((self.batch_size, -1)).cuda()
-            neighbor_relations = torch.LongTensor(n_r).view((self.batch_size, -1)).cuda()
+            neighbor_relations = (
+                torch.LongTensor(n_r).view((self.batch_size, -1)).cuda()
+            )
             entities.append(neighbor_entities)
             relations.append(neighbor_relations)
 
@@ -239,10 +266,10 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
 
     def _aggregate(self, user_embeddings, entities, relations):
         # KGCN中的聚合的函数
-        '''
+        """
         通过聚合邻居向量进行项目嵌入
         user_embedding[batch size   dim ]
-        '''
+        """
         # entity_vectors list:3  0: [batch size 1 dim], 1 [batch size  8  dim ],2 [batch 64 dim ], 3  [batch 64*8   dim]
         entity_vectors = [self.entity_emb(entity) for entity in entities]
         # relation_vectors list2  0: [batch 8 dim] , 1 :[batch 64  dim]
@@ -258,14 +285,20 @@ class KGNN(nn.Module): # RippleNet融合GCN 多了adj_entity,adj_relation两个�
             for hop in range(self.n_iter - i):
                 vector = self.aggregator(
                     self_vectors=entity_vectors[hop],
-                    neighbor_vectors=entity_vectors[hop + 1].view((self.batch_size, -1, self.n_neighbor, self.dim)),
-                    neighbor_relations=relation_vectors[hop].view((self.batch_size, -1, self.n_neighbor, self.dim)),
+                    neighbor_vectors=entity_vectors[hop + 1].view(
+                        (self.batch_size, -1, self.n_neighbor, self.dim)
+                    ),
+                    neighbor_relations=relation_vectors[hop].view(
+                        (self.batch_size, -1, self.n_neighbor, self.dim)
+                    ),
                     user_embeddings=user_embeddings,
-                    act=act)
+                    act=act,
+                )
                 entity_vectors_next_iter.append(vector)
             entity_vectors = entity_vectors_next_iter
 
         return entity_vectors[0].view((self.batch_size, self.dim))
+
 
 # if __name__ == '__main__':
 #     model = RippleNet()

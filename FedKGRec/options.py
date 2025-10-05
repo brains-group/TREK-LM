@@ -10,9 +10,9 @@ def args_parser():
     # 1.后缀output1-文中给的参数是dim 32; n_hop 2; kge_w 0.01;l2_w 1e-7;lr 0.02;batch_size 1024;n_epoch 30;n_memory 32;neighbor_sample_size 4
     # 2.后缀output-代码原始参数：dim 8; n_hop 2; kge_w 0.01;l2_w 1e-7;lr 0.02;batch_size 512;n_epoch 30;n_memory 32;neighbor_sample_size 8
     # 3.后缀不加output-文中给的参数效果更好
-    '''
+    # '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='movie-1m', help='which dataset to use')
+    parser.add_argument('--dataset', type=str, default='movie-pkg', help='which dataset to use')
     parser.add_argument('--dim', type=int, default=32, help='dimension of entity and relation embeddings')
     parser.add_argument('--n_hop', type=int, default=2, help='maximum hops')
     parser.add_argument('--kge_weight', type=float, default=0.01, help='weight of the KGE term')
@@ -45,7 +45,7 @@ def args_parser():
     parser.add_argument('--dp_epsilon', type=float, default=10, help='differential privacy epsilon  0.1/1/2/5/10')
     parser.add_argument('--dp_delta', type=float, default=1e-5, help='differential privacy delta')
     parser.add_argument('--dp_clip', type=float, default=0.005, help='differential privacy clip 0.001/0.005/0.0005')
-    '''
+    # '''
 
     # default settings for movie-20m
     # 1.后缀output-代码原始参数是dim 32; n_hop 2; kge_w 0.01;l2_w 1e-7;lr 0.02;batch_size 2048;n_epoch 4;n_memory 32;neighbor_sample_size 4
@@ -78,7 +78,7 @@ def args_parser():
     # 2.后缀output-代码原始参数是dim 4; n_hop 2; kge_w 1e-2;l2_w 1e-5;lr 1e-2;batch_size 1024;n_epoch 30;n_memory 32;neighbor_sample_size 4
     # 3.后缀不加output-原始参数效果更好
     # 4.后缀是book2-调整了模型用的model_new
-    # '''
+    '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='book', help='which dataset to use')
     parser.add_argument('--dim', type=int, default=4, help='dimension of entity and relation embeddings')
@@ -113,7 +113,7 @@ def args_parser():
     parser.add_argument('--dp_epsilon', type=float, default=0.1, help='differential privacy epsilon  0.1/1/2/5/10')
     parser.add_argument('--dp_delta', type=float, default=1e-5, help='differential privacy delta')
     parser.add_argument('--dp_clip', type=float, default=0.001, help='differential privacy clip 0.001/0.005/0.0005')
-    # '''
+    '''
 
     # default settings for lastfm 2k
     # 1.后缀output1-KGCN文中给的参数是dim 16; n_hop 2; kge_w 0.01;l2_w 1e-4;lr 5e-4;batch_size 512;n_epoch 30;n_memory 32;neighbor_sample_size 8

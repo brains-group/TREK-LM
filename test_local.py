@@ -151,8 +151,10 @@ def main():
     random.seed(2025)
 
     # Load the test dataset to identify users
-    with open("./data/movieKnowledgeGraphTestDataset.json", "r") as file:
+    with open(f"./data/{args.test_data}.json", "r") as file:
         dataset = json.load(file)
+    with open(f"./data/{args.data}.json", "r") as file:
+        trainDataset = json.load(file)
 
     user_counts = defaultdict(int)
     for datapoint in dataset:
@@ -162,10 +164,15 @@ def main():
         )
         if user_match:
             user_counts[user_match.group(1)] += 1
+    trainUsers = defaultdict(bool)
+    for user in trainDataset.keys():
+        trainUsers[user] = True
 
     # Sample users
     eligible_users = [
-        user for user, count in user_counts.items() if count >= args.min_datapoints
+        user
+        for user, count in user_counts.items()
+        if ((count >= args.min_datapoints) and trainUsers[user])
     ]
     selected_users = random.sample(
         eligible_users, min(args.num_selected_users, len(eligible_users))
@@ -211,35 +218,36 @@ def main():
         for key, value in metrics_real.items():
             real_metrics_agg[key].append(value)
 
-        # --- Synthetic Data Training and Testing ---
-        print(f"Training on synthetic data for User: {user_id}")
-        train_argv_synth = [
-            "--cfg",
-            args.cfg,
-            f'dataset.name="{args.data}WithSyntheticData"',
-            f'+dataset_index="{user_id}"',
-        ]
-        run_in_memory(train_main, train_argv_synth)
+        if "movie" in args.data.lower():
+            # --- Synthetic Data Training and Testing ---
+            print(f"Training on synthetic data for User: {user_id}")
+            train_argv_synth = [
+                "--cfg",
+                args.cfg,
+                f'dataset.name="{args.data}WithSyntheticData"',
+                f'+dataset_index="{user_id}"',
+            ]
+            run_in_memory(train_main, train_argv_synth)
 
-        print(f"Testing on synthetic data for User: {user_id}")
-        lora_path_synth = get_run_path(train_argv_synth)
-        latest_checkpoint_synth = max(os.listdir(lora_path_synth))
-        test_argv_synth = [
-            "--base_model_path",
-            config.model.name,
-            "--lora_path",
-            # os.path.join(lora_path_synth, latest_checkpoint_synth),
-            lora_path_real,
-            "--user_id",
-            user_id,
-            "--data_path",
-            f"./data/{args.test_data}.json",
-        ]
-        if args.num_test_datapoints:
-            test_argv_synth += ["--max_datapoints", str(args.num_test_datapoints)]
-        metrics_synth, _ = run_in_memory(test_main, test_argv_synth)
-        for key, value in metrics_synth.items():
-            synth_metrics_agg[key].append(value)
+            print(f"Testing on synthetic data for User: {user_id}")
+            lora_path_synth = get_run_path(train_argv_synth)
+            latest_checkpoint_synth = max(os.listdir(lora_path_synth))
+            test_argv_synth = [
+                "--base_model_path",
+                config.model.name,
+                "--lora_path",
+                # os.path.join(lora_path_synth, latest_checkpoint_synth),
+                lora_path_real,
+                "--user_id",
+                user_id,
+                "--data_path",
+                f"./data/{args.test_data}.json",
+            ]
+            if args.num_test_datapoints:
+                test_argv_synth += ["--max_datapoints", str(args.num_test_datapoints)]
+            metrics_synth, _ = run_in_memory(test_main, test_argv_synth)
+            for key, value in metrics_synth.items():
+                synth_metrics_agg[key].append(value)
 
     # Print final aggregated results
     num_selected_users = len(selected_users)
@@ -257,16 +265,16 @@ def main():
             f"./metrics/aggregated_real_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
             True,
         )
-
-        print("\n--- Synthetic Data Average Metrics ---")
-        synth_final_metrics = calculate_and_format_metrics(
-            synth_metrics_agg, args.num_selected_users
-        )
-        save_metrics_to_csv(
-            synth_final_metrics,
-            f"./metrics/aggregated_synthetic_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
-            True,
-        )
+        if "movie" in args.data.lower():
+            print("\n--- Synthetic Data Average Metrics ---")
+            synth_final_metrics = calculate_and_format_metrics(
+                synth_metrics_agg, args.num_selected_users
+            )
+            save_metrics_to_csv(
+                synth_final_metrics,
+                f"./metrics/aggregated_synthetic_data_{args.cfg}_{args.num_selected_users}_{args.data}.csv",
+                True,
+            )
 
     print("\n" + "=" * 40)
 

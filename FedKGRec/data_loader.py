@@ -18,7 +18,7 @@ def load_data(args):
 def load_rating(args):
     # 读取评分文件
     print('reading rating file ...')
-    rating_file = '../data/' + args.dataset + '/ratings_final'
+    rating_file = './data/' + args.dataset + '/ratings_final'
     if os.path.exists(rating_file + '.npy'):
         rating_np = np.load(rating_file + '.npy')
     else:
@@ -71,7 +71,7 @@ def dataset_split(rating_np):
 def load_kg(args):
     # 读取知识图谱文件，将其转换为向量npy文件
     print('reading KG file ...')
-    kg_file = '../data/' + args.dataset + '/kg_final'
+    kg_file = './data/' + args.dataset + '/kg_final'
     if os.path.exists(kg_file + '.npy'):
         kg_np = np.load(kg_file + '.npy')
     else:
@@ -165,34 +165,20 @@ class DataLoader:
     '''
     def __init__(self, data):
         self.cfg = {
-            'movie-1m': {
-                'item2id_path': '../data/movie-1m/item_index2entity_id.txt',
-                'kg_path': '../data/movie-1m/kg.txt',
-                'rating_path': '../data/movie-1m/ratings.dat',
+            'movie-pkg': {
+                'item2id_path': './data/movie-pkg/item_index2entity_id.txt',
+                'kg_path': './data/movie-pkg/kg.txt',
+                'rating_path': './data/movie-pkg/ratings.dat',
                 'rating_sep': '::',
-                'threshold': 4.0
+                'threshold': 1.0
             },
-            'movie-20m': {
-                'item2id_path': '../data/movie-20m/item_index2entity_id.txt',
-                'kg_path': '../data/movie-20m/kg.txt',
-                'rating_path': '../data/movie-20m/ratings.csv',
-                'rating_sep': ',',
-                'threshold': 4.0
+            'recipe-pkg': {
+                'item2id_path': './data/recipe-pkg/item_index2entity_id.txt',
+                'kg_path': './data/recipe-pkg/kg.txt',
+                'rating_path': './data/recipe-pkg/ratings.dat',
+                'rating_sep': '::',
+                'threshold': 3.0
             },
-            'music': {
-                'item2id_path': '../data/music/item_index2entity_id.txt',
-                'kg_path': '../data/music/kg.txt',
-                'rating_path': '../data/music/user_artists.dat',
-                'rating_sep': '\t',
-                'threshold': 0.0
-            },
-            'book': {
-                'item2id_path': '../data/book/item_index2entity_id.txt',
-                'kg_path': '../data/book/kg.txt',
-                'rating_path': '../data/book/BX-Book-Ratings.csv',
-                'rating_sep': ';',
-                'threshold': 0.0
-            }
         }
         self.data = data
         
