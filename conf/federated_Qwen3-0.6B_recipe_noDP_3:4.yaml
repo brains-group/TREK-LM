@@ -4,6 +4,6 @@ defaults:
 dataset:
   name: "recipeKGDataset"
 
-flower:
-    num_rounds: 188
-    sample_clients: 5
+# flower:
+#     num_rounds: 188
+#     sample_clients: 5
