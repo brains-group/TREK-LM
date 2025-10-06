@@ -6,9 +6,9 @@ import logging
 logging.basicConfig(
     format="[%(asctime)s] %(levelname)s: %(message)s", level=logging.INFO
 )
-RATING_FILE_NAME = dict({"movie-pkg": "ratings.dat", "recipe-pkg": "ratings.dat"})
-SEP = dict({"movie-pkg": "::", "recipe-pkg": "::"})  # 设置分隔符
-THRESHOLD = dict({"movie-pkg": 1, "recipe-pkg": 3})
+RATING_FILE_NAME = dict({"movieKnowledgeGraphDataset": "ratings.dat", "recipeKnowledgeGraphDataset": "ratings.dat"})
+SEP = dict({"movieKnowledgeGraphDataset": "::", "recipeKnowledgeGraphDataset": "::"})  # 设置分隔符
+THRESHOLD = dict({"movieKnowledgeGraphDataset": 1, "recipeKnowledgeGraphDataset": 3})
 
 
 def read_item_index_to_entity_id_file(DATASET):
@@ -159,7 +159,7 @@ if __name__ == "__main__":
         "-d",
         "--dataset",
         type=str,
-        default="movie-pkg",
+        default="movieKnowledgeGraphDataset",
         help="which dataset to preprocess",
     )
     #     args = parser.parse_args()

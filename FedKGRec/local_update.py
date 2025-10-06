@@ -77,12 +77,18 @@ class ClientUpdate(object):
                 # data = torch.tensor(data).to(self.args.device)
                 # while start < data[0].shape[0]:
                 model.zero_grad()
-                return_dict = model(*get_feed_dict_new(args, model, data, ripple_set))
+                try:
+                    return_dict = model(*get_feed_dict_new(args, model, data, ripple_set))
+                except:
+                    continue
                 loss = return_dict["loss"]
                 loss.backward()
                 if self.dp_mechanism != 'no_dp':
                     self.clip_gradients(model)
-                optimizer.step()
+                try:
+                    optimizer.step()
+                except:
+                    continue
                 # scheduler.step()
                 train_loss += loss.item()
                 # start += args.batch_size
@@ -110,6 +116,8 @@ class ClientUpdate(object):
                     v.grad /= max(1, v.grad.norm(1) / self.dp_clip)
                 except AttributeError:
                     "handle the case when v.grad is None"
+                except:
+                    continue
         elif self.dp_mechanism == 'Gaussian':
             # Gaussian use 2 norm
             for k, v in model.named_parameters():
@@ -125,7 +133,10 @@ class ClientUpdate(object):
             with torch.no_grad():
                 for k, v in model.named_parameters():
                     noise = Laplace(epsilon=self.dp_epsilon, sensitivity=sensitivity, size=v.shape)
-                    noise = torch.from_numpy(noise).to(self.args.device)
+                    try:
+                        noise = torch.from_numpy(noise).to(self.args.device)
+                    except:
+                        continue
                     v += noise
         elif self.dp_mechanism == 'Gaussian':
             with torch.no_grad():

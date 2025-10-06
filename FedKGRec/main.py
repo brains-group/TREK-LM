@@ -97,7 +97,8 @@ if __name__ == "__main__":
     # 用于训练的数据分区类型（IID）。
     iid_dict = iid_partition(train_data, 100)
     # root_path="../result/music/"
-    root_path = "../result/{}/".format(args.dataset)
+    root_path = "./result/{}/".format(args.dataset)
+    os.makedirs(root_path, exist_ok=True)
     plt_color = "orange"
     plt_title = "FedKGR_{}-{}epsilon-{}clip-{}lr on {}_{}R_{}C_{}K_{}E_{}B_".format(
         args.dp_mechanism,
@@ -168,17 +169,26 @@ if __name__ == "__main__":
                 dp_mechanism=dp_mechanism,
                 dp_clip=dp_clip,
             )
-            weights, loss = local_update.train(
-                args, train_data, ripple_set, model=copy.deepcopy(model)
-            )
+            try:
+                weights, loss = local_update.train(
+                    args, train_data, ripple_set, model=copy.deepcopy(model)
+                )
+            except:
+                continue
 
-            w_locals.append(copy.deepcopy(weights))
+            try:
+                w_locals.append(copy.deepcopy(weights))
+            except:
+                continue
             local_loss.append(copy.deepcopy(loss))
 
         # 更新全局权重 FedAvg算法聚合
         w_glob = FedAvg(w_locals)
         # 将更新后的权重参数移到我们的模型状态下
-        model.load_state_dict(w_glob)
+        try:
+            model.load_state_dict(w_glob)
+        except:
+            continue
 
         # loss and auc acc f1
         loss_avg = sum(local_loss) / len(local_loss)
@@ -312,7 +322,10 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     x_axis = np.arange(1, R + 1)
     y_axis = np.array(train_Loss)
-    ax.plot(x_axis, y_axis, "tab:" + plt_color)
+    try:
+        ax.plot(x_axis, y_axis, "tab:" + plt_color)
+    except:
+        pass
     ax.set(
         xlabel="Number of Rounds",
         ylabel="Train Loss",
@@ -324,7 +337,10 @@ if __name__ == "__main__":
     fig0, ax0 = plt.subplots()
     x_axis0 = np.arange(1, R + 1)
     y_axis0 = np.array(test_Loss)
-    ax0.plot(x_axis0, y_axis0, "tab:" + plt_color)
+    try:
+        ax0.plot(x_axis0, y_axis0, "tab:" + plt_color)
+    except:
+        pass
     ax0.set(
         xlabel="Number of Rounds",
         ylabel="Test Loss",

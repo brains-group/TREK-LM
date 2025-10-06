@@ -12,7 +12,7 @@ def args_parser():
     # 3.后缀不加output-文中给的参数效果更好
     # '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='movie-pkg', help='which dataset to use')
+    parser.add_argument('--dataset', type=str, default='movieKnowledgeGraphDataset', help='which dataset to use')
     parser.add_argument('--dim', type=int, default=32, help='dimension of entity and relation embeddings')
     parser.add_argument('--n_hop', type=int, default=2, help='maximum hops')
     parser.add_argument('--kge_weight', type=float, default=0.01, help='weight of the KGE term')

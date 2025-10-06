@@ -69,7 +69,7 @@ def parse_args():
         help="Size of embeddings (if pretrained not used)",
     )
     args.add_argument("-l", "--lr", type=float, default=1e-3)
-    args.add_argument("-g2hop", "--get_2hop", type=bool, default=False)
+    args.add_argument("-g2hop", "--get_2hop", type=bool, default=True)
     args.add_argument("-u2hop", "--use_2hop", type=bool, default=True)
     args.add_argument("-p2hop", "--partial_2hop", type=bool, default=False)
     args.add_argument(
@@ -178,7 +178,7 @@ def load_data(args):
         relation2id,
         headTailSelector,
         unique_entities_train,
-    ) = build_data(args.data, is_unweigted=False, directed=True)
+    ) = build_data(args.data + "/", is_unweigted=False, directed=True)
 
     if args.pretrained_emb:
         entity_embeddings, relation_embeddings = init_embeddings(

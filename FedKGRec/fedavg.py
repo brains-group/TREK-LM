@@ -28,6 +28,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms, utils, datasets
 
 def FedAvg(w):
+    if len(w) == 0:
+        return {}
     w_avg = copy.deepcopy(w[0])
     for k in w_avg.keys():
         for i in range(1, len(w)):

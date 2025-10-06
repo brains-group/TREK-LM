@@ -25,7 +25,7 @@ def parse_args(args=None):
     parser.add_argument('--do_test', action='store_true')
 
     parser.add_argument('--data_path', type=str, default=None)
-    parser.add_argument('--model', default='TransE', type=str)
+    parser.add_argument('--model', default='HAKE', type=str)
 
     parser.add_argument('-n', '--negative_sample_size', default=128, type=int)
     parser.add_argument('-d', '--hidden_dim', default=500, type=int)

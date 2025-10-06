@@ -83,15 +83,24 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         t_emb_list = []
         for i in range(self.n_hop):
             # [batch size, n_memory, dim]
-            h_emb_list.append(self.entity_emb(memories_h[i]))
+            try:
+                h_emb_list.append(self.entity_emb(memories_h[i]))
+            except:
+                pass
             # [batch size, n_memory, dim, dim]
-            r_emb_list.append(
-                self.relation_emb(memories_r[i]).view(
-                    -1, self.n_memory, self.dim, self.dim
+            try:
+                r_emb_list.append(
+                    self.relation_emb(memories_r[i]).view(
+                        -1, self.n_memory, self.dim, self.dim
+                    )
                 )
-            )
+            except:
+                pass
             # [batch size, n_memory, dim]
-            t_emb_list.append(self.entity_emb(memories_t[i]))
+            try:
+                t_emb_list.append(self.entity_emb(memories_t[i]))
+            except:
+                pass
 
         o_list, item_embeddings_ripple = self._key_addressing(
             h_emb_list, r_emb_list, t_emb_list, item_embeddings_ripple
@@ -109,6 +118,8 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         item_embeddings = self._aggregate(
             user_embedding_ripple, entities, relations
         )  # KGCN的item_embeddings
+        if item_embeddings is None:
+            item_embeddings = torch.zeros_like(item_embeddings_ripple)
 
         # o_list.append(u_history_embedding)
         # scores = self.predict(item_embeddings, o_list) #原始RippleNet
@@ -130,7 +141,10 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         kge_loss = 0
         for hop in range(self.n_hop):
             # [batch size, n_memory, 1, dim]
-            h_expanded = torch.unsqueeze(h_emb_list[hop], dim=2)
+            try:
+                h_expanded = torch.unsqueeze(h_emb_list[hop], dim=2)
+            except:
+                continue
             # [batch size, n_memory, dim, 1]
             t_expanded = torch.unsqueeze(t_emb_list[hop], dim=3)
             # [batch size, n_memory, dim, dim]
@@ -142,7 +156,10 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
 
         l2_loss = 0
         for hop in range(self.n_hop):
-            l2_loss += (h_emb_list[hop] * h_emb_list[hop]).sum()
+            try:
+                l2_loss += (h_emb_list[hop] * h_emb_list[hop]).sum()
+            except:
+                continue
             l2_loss += (t_emb_list[hop] * t_emb_list[hop]).sum()
             l2_loss += (r_emb_list[hop] * r_emb_list[hop]).sum()
         l2_loss = self.l2_weight * l2_loss
@@ -155,7 +172,10 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         o_list = []
         for hop in range(self.n_hop):
             # [batch_size, n_memory, dim, 1]  h扩充一维 [1024 32 16 1]
-            h_expanded = torch.unsqueeze(h_emb_list[hop], dim=3)
+            try:
+                h_expanded = torch.unsqueeze(h_emb_list[hop], dim=3)
+            except:
+                continue
 
             # [batch_size, n_memory, dim]  Rh   [1024 32 16 1]  =   [1024 32 16 16] mat [1024 32 16 1 ]
             Rh = torch.squeeze(torch.matmul(r_emb_list[hop], h_expanded))
@@ -196,7 +216,12 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
     def _history_extracting(self, h_emb_list):
         # 新添加的历史记录提取函数
         # [batch_size n_memeres  dim]
-        history = h_emb_list[0]
+        try:
+            history = h_emb_list[0]
+        except:
+            history = torch.zeros((self.batch_size, self.n_memory, self.dim)).to(
+                self.entity_emb.weight.device
+            )
         # [1024 32 16 ]
         history = self.transformerEncoder(history)
         pool = self.pooling(kernel_size=(self.n_memory, 1), stride=(self.n_memory, 1))
@@ -253,7 +278,10 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         relations = []
 
         for h in range(self.n_iter):
-            n_e = self.adj_entity[entities[h].cpu()]
+            try:
+                n_e = self.adj_entity[entities[h].cpu()]
+            except:
+                continue
             n_r = self.adj_relation[entities[h].cpu()]
             neighbor_entities = torch.LongTensor(n_e).view((self.batch_size, -1)).cuda()
             neighbor_relations = (
@@ -271,9 +299,27 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
         user_embedding[batch size   dim ]
         """
         # entity_vectors list:3  0: [batch size 1 dim], 1 [batch size  8  dim ],2 [batch 64 dim ], 3  [batch 64*8   dim]
-        entity_vectors = [self.entity_emb(entity) for entity in entities]
+        try:
+            entity_vectors = [self.entity_emb(entity) for entity in entities]
+        except:
+            entity_vectors = []
+            for entity in entities:
+                try:
+                    entity_vectors.append(self.entity_emb(entity))
+                except:
+                    continue
         # relation_vectors list2  0: [batch 8 dim] , 1 :[batch 64  dim]
-        relation_vectors = [self.relation_emb_GCN(relation) for relation in relations]
+        try:
+            relation_vectors = [
+                self.relation_emb_GCN(relation) for relation in relations
+            ]
+        except:
+            relation_vectors = []
+            for relation in relations:
+                try:
+                    relation_vectors.append(self.relation_emb_GCN(relation))
+                except:
+                    continue
 
         for i in range(self.n_iter):
             if i == self.n_iter - 1:
@@ -283,21 +329,27 @@ class KGNN(nn.Module):  # RippleNet融合GCN 多了adj_entity,adj_relation两个
 
             entity_vectors_next_iter = []
             for hop in range(self.n_iter - i):
-                vector = self.aggregator(
-                    self_vectors=entity_vectors[hop],
-                    neighbor_vectors=entity_vectors[hop + 1].view(
-                        (self.batch_size, -1, self.n_neighbor, self.dim)
-                    ),
-                    neighbor_relations=relation_vectors[hop].view(
-                        (self.batch_size, -1, self.n_neighbor, self.dim)
-                    ),
-                    user_embeddings=user_embeddings,
-                    act=act,
-                )
+                try:
+                    vector = self.aggregator(
+                        self_vectors=entity_vectors[hop],
+                        neighbor_vectors=entity_vectors[hop + 1].view(
+                            (self.batch_size, -1, self.n_neighbor, self.dim)
+                        ),
+                        neighbor_relations=relation_vectors[hop].view(
+                            (self.batch_size, -1, self.n_neighbor, self.dim)
+                        ),
+                        user_embeddings=user_embeddings,
+                        act=act,
+                    )
+                except:
+                    continue
                 entity_vectors_next_iter.append(vector)
-            entity_vectors = entity_vectors_next_iter
-
-        return entity_vectors[0].view((self.batch_size, self.dim))
+            if entity_vectors_next_iter:
+                entity_vectors = entity_vectors_next_iter
+        try:
+            return entity_vectors[0].view((self.batch_size, self.dim))
+        except IndexError:
+            return None
 
 
 # if __name__ == '__main__':

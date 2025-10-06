@@ -114,9 +114,12 @@ def get_feed_dict(
     labels = torch.LongTensor(data[start:end, 2])
     memories_h, memories_r, memories_t = [], [], []  # [user]
     for i in range(args.n_hop):
-        memories_h.append(
-            torch.LongTensor([ripple_set[user][i][0] for user in data[start:end, 0]])
-        )
+        try:
+            memories_h.append(
+                torch.LongTensor([ripple_set[user][i][0] for user in data[start:end, 0]])
+            )
+        except:
+            continue
         memories_r.append(
             torch.LongTensor([ripple_set[user][i][1] for user in data[start:end, 0]])
         )
