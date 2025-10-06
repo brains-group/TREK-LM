@@ -1,7 +1,7 @@
 import argparse
 import json
 import os
-from random import random
+import random
 import re
 import numpy as np
 from tqdm import tqdm
