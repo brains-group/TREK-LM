@@ -99,8 +99,8 @@ def load_data(
 def build_data(
     path="./data/WN18RR/", is_unweigted=False, directed=True, partition=None
 ):
-    entity2id = read_entity_from_id(path + "entity2id.txt")
-    relation2id = read_relation_from_id(path + "relation2id.txt")
+    entity2id = read_entity_from_id(path + "/entity2id.txt")
+    relation2id = read_relation_from_id(path + "/relation2id.txt")
 
     # Adjacency matrix only required for training phase
     # Currenlty creating as unweighted, undirected

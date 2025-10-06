@@ -259,7 +259,8 @@ class KGEModel(nn.Module, ABC):
             if (metrics["Precision"] + metrics["Recall"]) > 0
             else 0
         )
-        for metric in metrics.keys():
+        metricsKeys = list(metrics.keys())
+        for metric in metricsKeys:
             if metric == "MRR" or metric == "MR":
                 metrics[metric + "_StdDev"] = np.std([log[metric] for log in logs])
             else:

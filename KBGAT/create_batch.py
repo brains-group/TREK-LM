@@ -453,7 +453,7 @@ class Corpus:
             hits_at_three_head, hits_at_three_tail = 0, 0
             hits_at_one_head, hits_at_one_tail = 0, 0
 
-            for i in tqdm(range(batch_indices.shape[0])):
+            for i in tqdm(range(0, batch_indices.shape[0], 30)):
                 print(len(ranks_head))
                 start_time_it = time.time()
                 new_x_batch_head = np.tile(
@@ -559,7 +559,23 @@ class Corpus:
                     # scores5_head, scores6_head, scores7_head, scores8_head,
                     # cores9_head, scores10_head], dim=0)
                 else:
-                    scores_head = model.batch_test(new_x_batch_head)
+                    # Define a manageable chunk size
+                    chunk_size = 32768 # You can adjust this based on your VRAM
+                    num_chunks = math.ceil(new_x_batch_head.shape[0] / chunk_size)
+                    scores_list = []
+                    for k in range(num_chunks):
+                        start_idx = k * chunk_size
+                        end_idx = min((k + 1) * chunk_size, new_x_batch_head.shape[0])
+                        
+                        # Process one chunk at a time
+                        chunk_batch = torch.LongTensor(new_x_batch_head[start_idx:end_idx, :]).cuda()
+                        scores_chunk = model.batch_test(chunk_batch)
+                        scores_list.append(scores_chunk)
+                    
+                    # Concatenate the scores from all chunks
+                    scores_head = torch.cat(scores_list, dim=0)
+                # else:
+                #     scores_head = model.batch_test(new_x_batch_head)
 
                 sorted_scores_head, sorted_indices_head = torch.sort(
                     scores_head.view(-1), dim=-1, descending=True
@@ -621,9 +637,24 @@ class Corpus:
                     )
                     #     scores5_tail, scores6_tail, scores7_tail, scores8_tail,
                     #     scores9_tail, scores10_tail], dim=0)
-
                 else:
-                    scores_tail = model.batch_test(new_x_batch_tail)
+                    # Define a manageable chunk size
+                    chunk_size = 32768 # You can adjust this based on your VRAM
+                    num_chunks = math.ceil(new_x_batch_tail.shape[0] / chunk_size)
+                    scores_list = []
+                    for k in range(num_chunks):
+                        start_idx = k * chunk_size
+                        end_idx = min((k + 1) * chunk_size, new_x_batch_tail.shape[0])
+                        
+                        # Process one chunk at a time
+                        chunk_batch = torch.LongTensor(new_x_batch_tail[start_idx:end_idx, :]).cuda()
+                        scores_chunk = model.batch_test(chunk_batch)
+                        scores_list.append(scores_chunk)
+                    
+                    # Concatenate the scores from all chunks
+                    scores_tail = torch.cat(scores_list, dim=0)
+                # else:
+                #     scores_tail = model.batch_test(new_x_batch_tail)
 
                 sorted_scores_tail, sorted_indices_tail = torch.sort(
                     scores_tail.view(-1), dim=-1, descending=True
@@ -798,7 +829,7 @@ class Corpus:
         ) / 2
 
         def calcStandardError(val):
-            np.sqrt(val * (1 - val) / len(average_hits_at_100_head))
+            return np.sqrt(val * (1 - val) / len(average_hits_at_100_head))
 
         print("\nCumulative stats are -> ")
         print(

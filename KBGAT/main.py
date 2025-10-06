@@ -178,7 +178,7 @@ def load_data(args):
         relation2id,
         headTailSelector,
         unique_entities_train,
-    ) = build_data(args.data + "/", is_unweigted=False, directed=True)
+    ) = build_data(args.data, is_unweigted=False, directed=True)
 
     if args.pretrained_emb:
         entity_embeddings, relation_embeddings = init_embeddings(
@@ -509,6 +509,7 @@ def train_conv(args):
 
 
 def evaluate_conv(args, unique_entities):
+    print("Evaluating conv model")
     model_conv = SpKBGATConvOnly(
         entity_embeddings,
         relation_embeddings,
@@ -521,20 +522,24 @@ def evaluate_conv(args, unique_entities):
         args.nheads_GAT,
         args.out_channels,
     )
+    print("Loading the trained conv model")
     model_conv.load_state_dict(
         torch.load(
             "{0}conv/trained_{1}.pth".format(args.output_folder, args.epochs_conv - 1)
         ),
         strict=False,
     )
-
+    print("Final entity embedding size {}".format(model_conv.final_entity_embeddings.size()))
     model_conv.cuda()
+    print("Final relation embedding size {}".format(model_conv.final_relation_embeddings.size()))
     model_conv.eval()
+    print("Getting validation set predictions")
     with torch.no_grad():
         Corpus_.get_validation_pred(args, model_conv, unique_entities)
+    print("Getting test set predictions")
 
 
-train_gat(args)
+# train_gat(args)
 
-train_conv(args)
+# train_conv(args)
 evaluate_conv(args, Corpus_.unique_entities_train)
