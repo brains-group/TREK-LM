@@ -41,7 +41,9 @@ def main():
 
     # Determine model directory for saving predictions
     model_output_dir = (
-        os.path.dirname(args.lora_path) if args.lora_path else args.base_model_path
+        os.path.dirname(args.lora_path)
+        if args.lora_path
+        else (args.base_model_path + os.path.split(args.data_path)[-1])
     )
     # Construct the new metrics directory path
     metrics_base_dir = "./metrics"
@@ -155,7 +157,12 @@ def main():
             (
                 1
                 if any(
-                    (goal[: goal.rfind(" ")] if goal.endswith(")") else goal) in rec
+                    re.sub(
+                        r"\s+",
+                        " ",
+                        (goal[: goal.rfind(" ")] if goal.endswith(")") else goal),
+                    ).lower()
+                    in re.sub(r"\s+", " ", rec).lower()
                     for goal in goals
                 )
                 else 0

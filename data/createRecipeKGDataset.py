@@ -273,7 +273,13 @@ def main():
         if num_data_points < 20 or sum_choices == 0 or sum_choices == num_data_points:
             culled_users += 1
             culled_data_points += num_data_points
-            synthetic_benchmark_dataset.extend(kg_dataset[user])
+            synthetic_benchmark_dataset.extend(
+                [
+                    datapoint
+                    for datapoint in kg_dataset[user]
+                    if datapoint[C.LABEL_STRING] == True
+                ]
+            )
             del kg_dataset[user]
         else:
             sum_data_points += num_data_points
