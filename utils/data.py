@@ -177,6 +177,7 @@ def adapt_HAKE_and_KBGAT_and_FedKGRec_data(
             [
                 triple.replace("\t", "::")
                 for triple in chain(nonFederatedTrain, test, nonFederatedValid)
+                if not tripleTest(triple)
             ]
         )
 

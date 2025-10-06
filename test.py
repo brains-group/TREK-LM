@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from random import random
 import re
 import numpy as np
 from tqdm import tqdm
@@ -16,13 +17,16 @@ def get_prompt_text(data_point):
 
 def matches_user(prompt_id, user_id):
     """Checks if the data point corresponds to the specified user ID."""
-    user_id_match = re.search(r"The user's entity is represented by /?(\d+).", prompt_id)
+    user_id_match = re.search(
+        r"The user's entity is represented by /?(\d+).", prompt_id
+    )
     return user_id_match and user_id_match.group(1) == user_id
 
 
 def main():
     """Main function to run the evaluation of a model on a test dataset."""
     MAX_NEW_TOKENS = 1024
+    random.seed(42)
 
     parser = argparse.ArgumentParser(description="Model evaluation script.")
     parser.add_argument("--base_model_path", type=str, default="Qwen/Qwen3-0.6B")
@@ -65,6 +69,7 @@ def main():
     # Load data
     with open(args.data_path, "r") as file:
         dataset = json.load(file)
+    random.shuffle(dataset)
 
     # Run evaluation loop
     with open(predictions_file, "a") as f_out:
