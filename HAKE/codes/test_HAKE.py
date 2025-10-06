@@ -107,19 +107,19 @@ def parse_args(args=None):
     parser.add_argument(
         "--num_rounds",
         type=float,
-        default=50,
+        default=128,
         help="Dropout probability for convolution layer",
     )
     parser.add_argument(
         "--sample_clients",
         type=float,
-        default=10,
+        default=4,
         help="Dropout probability for convolution layer",
     )
     parser.add_argument(
         "--num_clients",
         type=float,
-        default=20,
+        default=737,
         help="Dropout probability for convolution layer",
     )
 

@@ -177,20 +177,17 @@ def parse_args():
     args.add_argument(
         "--num_rounds",
         type=float,
-        default=50,
-        help="Dropout probability for convolution layer",
+        default=128,
     )
     args.add_argument(
         "--sample_clients",
         type=float,
-        default=10,
-        help="Dropout probability for convolution layer",
+        default=4,
     )
     args.add_argument(
         "--num_clients",
         type=float,
-        default=20,
-        help="Dropout probability for convolution layer",
+        default=737,
     )
 
     args = args.parse_args()
@@ -288,7 +285,7 @@ def evaluate_conv(args, unique_entities):
     model_conv.load_state_dict(
         torch.load(
             "{0}/trained_{1}.pth".format(
-                f"../models/KBGAT/movieKnowledgeGraphDataset/20250511031904/peft_{args.num_rounds}",
+                f"../models/KBGAT/movieKnowledgeGraphDataset/20251006143529/peft_{args.num_rounds}",
                 args.num_rounds,
             )
         ),
