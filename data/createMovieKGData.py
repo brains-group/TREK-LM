@@ -1,5 +1,7 @@
+import re
 import sys
 import os
+import argparse
 import json
 import random
 from datasets import load_dataset
@@ -36,6 +38,10 @@ def main():
     print("Starting dataset creation process...")
     random.seed(1)
 
+    parser = argparse.ArgumentParser(description="Model evaluation script.")
+    parser.add_argument("--extracted_triples", type=str, default=None)
+    args = parser.parse_args()
+
     print('Loading movie dataset from "community-datasets/re_dial"...')
     movie_dataset = load_dataset("community-datasets/re_dial")
     dataset = movie_dataset["train"].to_dict()
@@ -43,6 +49,24 @@ def main():
     for key in dataset:
         dataset[key].extend(test_dataset[key])
     print(f"Loaded {len(dataset['conversationId'])} conversations.")
+
+    if args.extracted_triples:
+        extractedTriples = json.load(open(args.extracted_triples, "r"))
+        conversationIDToIndex = {
+            entry["conversationId"]: index
+            for index, entry in enumerate(extractedTriples)
+        }
+        for index in range(len(dataset["conversationId"])):
+            convId = dataset["conversationId"][index]
+            if convId in conversationIDToIndex:
+                dataset["initiatorQuestions"][index] = extractedTriples[
+                    conversationIDToIndex[convId]
+                ]["initiatorQuestions"]
+            else:
+                for movieData in dataset["initiatorQuestions"][index]:
+                    for key in ["liked", "suggested", "seen"]:
+                        movieData[key] = 2
+            dataset["respondentQuestions"][index] = dataset["initiatorQuestions"][index]
 
     # Initialize Qwen3 tokenizer
     print("Loading Qwen3 tokenizer...")
@@ -171,13 +195,14 @@ def main():
     print("Culling and splitting dataset...")
     for user in tqdm(list(kg_dataset.keys()), desc="Culling users"):
         removedItems = 0
-        for index in range(len(kg_dataset[user])):
-            if kg_dataset[user][index - removedItems][C.LABEL_STRING]:
-                if random.random() < testProportion:
-                    realBenchmarkDataset.append(
-                        kg_dataset[user].pop(index - removedItems)
-                    )
-                    removedItems += 1
+        if not args.extracted_triples:
+            for index in range(len(kg_dataset[user])):
+                if kg_dataset[user][index - removedItems][C.LABEL_STRING]:
+                    if random.random() < testProportion:
+                        realBenchmarkDataset.append(
+                            kg_dataset[user].pop(index - removedItems)
+                        )
+                        removedItems += 1
         sumChoices = sum(entry[C.LABEL_STRING] for entry in kg_dataset[user])
         numDataPoints = len(kg_dataset[user])
         if numDataPoints < 10 or sumChoices == 0 or sumChoices == numDataPoints:
@@ -227,13 +252,33 @@ def main():
             f"Longest tokenized prompt (Base KG Dataset): {base_kg_longest_tokens}\n"
         )
 
+        if args.extracted_triples:
+            fullTestDataset = json.load(open("movieKnowledgeGraphTestDataset.json", "r"))
+            positiveTests = [
+                entry["prompt"] for entry in fullTestDataset if entry[C.LABEL_STRING]
+                ]
+            negativeTests = [
+                entry["prompt"] for entry in fullTestDataset if not entry[C.LABEL_STRING]
+                ]
+            for user in culledKGDataset:
+                for entry in culledKGDataset[user]:
+                    if entry["prompt"] in (positiveTests if entry[C.LABEL_STRING] else negativeTests):
+                        culledKGDataset[user].remove(entry)
+                    
+
         print("Saving base KG dataset to JSON files...")
-        with open("movieKnowledgeGraphDataset.json", "w") as f:
+        with open(
+            f"movieKnowledgeGraphDataset{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            "w",
+        ) as f:
             json.dump(culledKGDataset, f, indent=4)
         nonFederatedDataset = [
             item for sublist in culledKGDataset.values() for item in sublist
         ]
-        with open("nonFederatedMovieKnowledgeGraphDataset.json", "w") as f:
+        with open(
+            f"nonFederatedMovieKnowledgeGraphDataset{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            "w",
+        ) as f:
             json.dump(nonFederatedDataset, f, indent=4)
         print("Base KG dataset saved.")
 
@@ -274,7 +319,7 @@ def main():
                         user_uri, g, movies, label, should_remove_relations
                     )
                     if new_datapoint:
-                        if label and random.random() < syntheticTestProportion:
+                        if label and random.random() < syntheticTestProportion and not args.extracted_triples:
                             syntheticBenchmarkDataset.append(new_datapoint)
                         else:
                             kg_dataset[user].append(new_datapoint)
@@ -300,22 +345,23 @@ def main():
             if numDataPoints < 10 or sumChoices == 0 or sumChoices == numDataPoints:
                 culledUsers += 1
                 culledDataPoints += numDataPoints
-                if syntheticStartIndexes.get(user, 0) > 0:
-                    realBenchmarkDataset.extend(
-                        [
-                            e
-                            for e in kg_dataset[user][: syntheticStartIndexes[user]]
-                            if e[C.LABEL_STRING]
-                        ]
-                    )
-                if syntheticStartIndexes.get(user, 0) < len(kg_dataset[user]):
-                    syntheticBenchmarkDataset.extend(
-                        [
-                            e
-                            for e in kg_dataset[user][syntheticStartIndexes[user] :]
-                            if e[C.LABEL_STRING]
-                        ]
-                    )
+                if not args.extracted_triples:
+                    if syntheticStartIndexes.get(user, 0) > 0:
+                        realBenchmarkDataset.extend(
+                            [
+                                e
+                                for e in kg_dataset[user][: syntheticStartIndexes[user]]
+                                if e[C.LABEL_STRING]
+                            ]
+                        )
+                    if syntheticStartIndexes.get(user, 0) < len(kg_dataset[user]):
+                        syntheticBenchmarkDataset.extend(
+                            [
+                                e
+                                for e in kg_dataset[user][syntheticStartIndexes[user] :]
+                                if e[C.LABEL_STRING]
+                            ]
+                        )
                 del kg_dataset[user]
             else:
                 culledKGDataset[user] = kg_dataset[user]
@@ -361,14 +407,32 @@ def main():
             f"Longest tokenized prompt (KG Dataset with Synthetic Data): {synthetic_kg_longest_tokens}\n"
         )
 
+        
+        if args.extracted_triples:
+            fullSyntheticTestDataset = json.load(open("movieKnowledgeGraphSyntheticTestDataset.json", "r"))
+            positiveTests = [
+                entry["prompt"] for entry in fullSyntheticTestDataset if entry[C.LABEL_STRING]
+                ]
+            negativeTests = [
+                entry["prompt"] for entry in fullSyntheticTestDataset if not entry[C.LABEL_STRING]
+                ]
+            for user in culledKGDataset:
+                for entry in culledKGDataset[user]:
+                    if entry["prompt"] in (positiveTests if entry[C.LABEL_STRING] else negativeTests):
+                        culledKGDataset[user].remove(entry)
+
         print("Saving KG dataset with synthetic data to JSON files...")
-        with open("movieKnowledgeGraphDatasetWithSyntheticData.json", "w") as f:
+        with open(
+            f"movieKnowledgeGraphDatasetWithSyntheticData{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            "w",
+        ) as f:
             json.dump(culledKGDataset, f, indent=4)
         nonFederatedSyntheticDataset = [
             item for sublist in culledKGDataset.values() for item in sublist
         ]
         with open(
-            "nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData.json", "w"
+            f"nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            "w",
         ) as f:
             json.dump(nonFederatedSyntheticDataset, f, indent=4)
         print("KG dataset with synthetic data saved.")
@@ -377,6 +441,10 @@ def main():
         stats_file.write(
             "Number of data points: " + str(len(realBenchmarkDataset)) + "\n"
         )
+
+        if args.extracted_triples:
+            print("Extracted triples provided; skipping KG Test Dataset creation.")
+            exit()
 
         print("--------- KG Test Dataset ---------")
         print("Number of data points: " + str(len(realBenchmarkDataset)))
