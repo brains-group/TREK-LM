@@ -14,6 +14,8 @@ The movie KG dataset can be generated simply by running `createMovieKGData.py` i
 For the [Food.com](https://www.kaggle.com/datasets/shuyangli94/food-com-recipes-and-user-interactions) dataset, the code is a little more complicated.
 If you have conda, you can just run `run_convertFoodIngrMap_in_env.sh` in the `TREK-LM/data/FoodIngrMapWorkaround` folder. Then, you can run `createRecipeKGDataset.py` to complete the data generation.
 
+In the examples folder, we provide a snippet of the federated training dataset.
+
 ## Training the Models
 
 ### LLM Model
