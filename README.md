@@ -8,16 +8,22 @@ The requirements.txt file contains a simple list of required libraries. The requ
 
 ## Generating the Data
 
-The movie KG dataset can be generated simply by running `createMovieData.py` in the `data` folder. This will also generate the adapted datasets for KBGAT and HAKE.
+The movie KG dataset can be generated simply by running `createMovieKGData.py` in the `data` folder. This will also generate the adapted datasets for KBGAT and HAKE.
+
+
+For the [Food.com](https://www.kaggle.com/datasets/shuyangli94/food-com-recipes-and-user-interactions) dataset, the code is a little more complicated.
+If you have conda, you can just run `run_convertFoodIngrMap_in_env.sh` in the `TREK-LM/data/FoodIngrMapWorkaround` folder. Then, you can run `createRecipeKGDataset.py` to complete the data generation.
+
+In the examples folder, we provide a snippet of the federated training dataset.
 
 ## Training the Models
 
 ### LLM Model
 
-The LLM model can be trained normally by running `centralized_train.py`. The dataset, model, and hyperparameters can be adjusted by editing `centralized_full.yaml` in the `conf` folder.
+The LLM model can be trained normally by running `train_centralized.py`. The dataset, model, and hyperparameters can be adjusted by editing the yaml files in the `conf` folder.
 Additionally, you can override the base model path by passing a `--base_model_path` argument. You can also override the dataset name used by passing the `--dataset_name` argument, and you can pass the `--dataset_index` if you are using a federated dataset and want to train on just one client's data (used for the local training ablation).
 
-The LLM model can be trained via a federated simulation by running `train.py`. The dataset, model, and hyperparameters can be adjusted by editing `federated_full.yaml` in the `conf` folder.
+The LLM model can be trained via a federated simulation by running `train.py`. The dataset, model, and hyperparameters can be adjusted by editing the yaml files in the `conf` folder.
 Additionally, you can override the base model path by passing a `--base_model_path` argument, and you can override the number of federated training rounds by passing the `--num_rounds` argument (useful for resuming from a checkpoint). You can also override the dataset name used by passing the `--dataset_name` argument.
 
 ### KBGAT
@@ -52,4 +58,6 @@ The local model training ablation test for the federated model can be done simpl
 
 ## External Datasets
 
-The external dataset used in this repo is [ReDial](https://huggingface.co/datasets/community-datasets/re_dial), but it doesn't need to be manually downloaded. The `createMovieData.py` code automatically pulls ReDial from HuggingFace.
+The external dataset used in this repo is [ReDial](https://huggingface.co/datasets/community-datasets/re_dial), but it doesn't need to be manually downloaded. The `createMovieKGData.py` code automatically pulls ReDial from HuggingFace.
+
+For the [Food.com](https://www.kaggle.com/datasets/shuyangli94/food-com-recipes-and-user-interactions) dataset, it is also automatically downloaded by the code.
