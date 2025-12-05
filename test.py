@@ -119,6 +119,7 @@ def main():
     # List to store per-datapoint MRR for standard deviation calculation
     per_datapoint_mrr = []
 
+    # print(completed_prompts)
     for data_point in dataset:
         prompt_text = get_prompt_text(data_point)
         if prompt_text not in completed_prompts:
@@ -134,18 +135,21 @@ def main():
         response = completed_prompts[prompt_text]
 
         # Make sure the model finished its response properly
-        endThinkString = "</think>"
-        endThinkIndex = response.rfind(endThinkString)
-        if endThinkIndex == -1:
-            # print("Output Did not complete thinking")
-            continue
+        startThinkString = "<think>"
+        startThinkIndex = response.find(startThinkString)
+        if not (startThinkIndex == -1):
+            endThinkString = "</think>"
+            endThinkIndex = response.rfind(endThinkString)
+            if endThinkIndex == -1:
+                # print("Output Did not complete thinking")
+                continue
         if (
             len(tokenizer.encode(response, add_special_tokens=True))
             > MAX_NEW_TOKENS - 4
         ):
             # print("Output Did not complete after thinking")
             continue
-
+        
         # Extract recommendations from the response
         recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
         if not recommendations:
