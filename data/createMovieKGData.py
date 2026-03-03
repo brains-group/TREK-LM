@@ -268,7 +268,7 @@ def main():
 
         print("Saving base KG dataset to JSON files...")
         with open(
-            f"movieKnowledgeGraphDataset{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            f"movieKnowledgeGraphDataset{re.search(r'augmented(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
             "w",
         ) as f:
             json.dump(culledKGDataset, f, indent=4)
@@ -276,7 +276,7 @@ def main():
             item for sublist in culledKGDataset.values() for item in sublist
         ]
         with open(
-            f"nonFederatedMovieKnowledgeGraphDataset{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            f"nonFederatedMovieKnowledgeGraphDataset{re.search(r'augmented(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
             "w",
         ) as f:
             json.dump(nonFederatedDataset, f, indent=4)
@@ -423,7 +423,7 @@ def main():
 
         print("Saving KG dataset with synthetic data to JSON files...")
         with open(
-            f"movieKnowledgeGraphDatasetWithSyntheticData{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            f"movieKnowledgeGraphDatasetWithSyntheticData{re.search(r'augmented(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
             "w",
         ) as f:
             json.dump(culledKGDataset, f, indent=4)
@@ -431,7 +431,7 @@ def main():
             item for sublist in culledKGDataset.values() for item in sublist
         ]
         with open(
-            f"nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData{re.search(r'stitched_conversations_(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
+            f"nonFederatedMovieKnowledgeGraphDatasetWithSyntheticData{re.search(r'augmented(.*)\.json', args.extracted_triples).group(1) if args.extracted_triples else ""}.json",
             "w",
         ) as f:
             json.dump(nonFederatedSyntheticDataset, f, indent=4)
