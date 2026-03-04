@@ -43,7 +43,7 @@ def find_longest_tokenized_prompt(dataset, tokenizer, dataset_name):
     return max_token_length
 
 
-def load_centralized_dataset(path: str, index: str = None):
+def load_centralized_dataset(path: str, index: str = None, model_name: str = None):
     """
     Loads a dataset for centralized training from a JSON file.
 
@@ -55,10 +55,23 @@ def load_centralized_dataset(path: str, index: str = None):
         json_data = json.load(file)
         if index:
             json_data = json_data[index]
+    if "gemma" in model_name:
+        def formatGemmaPrompt(example):
+            example["prompt"] = [
+                {
+                    "content": "\n".join(
+                        [turn["content"] for turn in example["prompt"]]
+                    ),
+                    "role": "user",
+                }
+            ]
+            return example
+
+        dataset = dataset.map(formatGemmaPrompt)
     return Dataset.from_list(json_data)
 
 
-def load_federated_dataset(path: str):
+def load_federated_dataset(path: str, model_name: str = None):
     """
     Loads a dataset for federated training from a JSON file.
     The file is expected to be a dictionary where keys are client IDs.
@@ -68,6 +81,17 @@ def load_federated_dataset(path: str):
     """
     with open(path, "r") as file:
         datasets = json.load(file)
+    if "gemma" in model_name:
+        for dataset in datasets.values():
+            for datapoint in dataset:
+                datapoint["prompt"] = [
+                    {
+                        "content": "\n".join(
+                            [turn["content"] for turn in datapoint["prompt"]]
+                        ),
+                        "role": "user",
+                    }
+                ]
     return datasets
 
 

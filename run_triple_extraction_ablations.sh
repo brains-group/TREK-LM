@@ -3,6 +3,11 @@
 # Create logs directory
 mkdir -p logs
 
+# Source .env file
+if [ -f .env ]; then
+    source .env
+fi
+
 # Login to Hugging Face
 huggingface-cli login --token "$HF_TOKEN"
 

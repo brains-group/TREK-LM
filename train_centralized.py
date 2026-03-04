@@ -67,7 +67,7 @@ def main():
 
     # Load dataset and tokenizer
     dataset_path = cfg.dataset.path.format(cfg.dataset.name)
-    dataset = load_centralized_dataset(dataset_path, cfg.get("dataset_index", None))
+    dataset = load_centralized_dataset(dataset_path, cfg.get("dataset_index", None), model_name=cfg.model.name)
     tokenizer = get_tokenizer(
         cfg.model.name,
         cfg.model.use_fast_tokenizer,
