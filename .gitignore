@@ -19,3 +19,4 @@ FedKGRec/log/
 HAKE/model/
 extractedTriples/
 wandb/
+logs/

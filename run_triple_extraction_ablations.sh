@@ -40,7 +40,7 @@ run_ablation() {
     
     # Find the input JSON file
     local search_path="./data/extractedTriples/${folder_name}"
-    local json_file=$(find "$search_path" -name "*augmented*${shot}shot.json" | head -n 1)
+    local json_file=$(find "$search_path" -name "*augmented*${shot}shots.json" | head -n 1)
     
     if [ -z "$json_file" ]; then
         echo "Error: JSON file not found for Model: $model, Shot: $shot"
