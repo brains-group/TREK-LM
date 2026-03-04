@@ -101,7 +101,7 @@ def main():
 
     # Load federated dataset and tokenizer
     dataset_path = cfg.dataset.path.format(cfg.dataset.name)
-    datasets = load_federated_dataset(dataset_path)
+    datasets = load_federated_dataset(dataset_path, model_name=cfg.model.name)
     cfg.flower.num_clients = len(datasets)
 
     # Load dataset and tokenizer

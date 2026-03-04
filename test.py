@@ -71,6 +71,16 @@ def main():
     # Load data
     with open(args.data_path, "r") as file:
         dataset = json.load(file)
+    if "gemma" in args.base_model_path:
+        for data_point in dataset:
+            data_point["prompt"] = [
+                {
+                    "content": "\n".join(
+                        [turn["content"] for turn in data_point["prompt"]]
+                    ),
+                    "role": "user",
+                }
+            ]
     random.shuffle(dataset)
 
     # Run evaluation loop
@@ -149,7 +159,7 @@ def main():
         ):
             # print("Output Did not complete after thinking")
             continue
-        
+
         # Extract recommendations from the response
         recommendations = re.findall(r"(?<=\n-)([^\n]+)", response)
         if not recommendations:
