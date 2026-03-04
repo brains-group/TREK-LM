@@ -83,7 +83,7 @@ def load_federated_dataset(path: str, model_name: str = None):
     with open(path, "r") as file:
         datasets = json.load(file)
     if "gemma" in model_name:
-        for dataset in datasets:
+        for dataset in datasets.values():
             for datapoint in dataset:
                 datapoint["prompt"] = [
                     {
