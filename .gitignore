@@ -20,3 +20,4 @@ HAKE/model/
 extractedTriples/
 wandb/
 logs/
+.env

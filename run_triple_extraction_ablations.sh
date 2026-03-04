@@ -3,6 +3,9 @@
 # Create logs directory
 mkdir -p logs
 
+# Login to Hugging Face
+huggingface-cli login --token "$HF_TOKEN"
+
 # Define models
 # Qwen3 models: 0.6B, 1.7B, 4B, 8B
 # Gemma-3 models: 1B, 4B, 12B
