@@ -54,33 +54,47 @@ run_ablation() {
         echo "Error: JSON file not found for Model: $model, Shot: $shot"
         return 1
     fi
-    
-    echo "Running ablation for Model: $model, Shot: $shot on GPU: $gpu_id"
-    echo "Input File: $json_file"
-    
-    # 1. Run createMovieKGData.py from data folder
-    # Pass relative path from data/ folder (../data/extractedTriples/...)
-    cd data
-    CUDA_VISIBLE_DEVICES=$gpu_id python createMovieKGData.py --extracted_triples "../$json_file" > "../logs/create_data_${folder_name}_${shot}shot.log" 2>&1
-    cd ..
-    
+
     # Determine generated dataset name
     # Regex in python script: augmented(.*)\.json
     local filename=$(basename "$json_file")
     local suffix=$(echo "$filename" | sed -n 's/.*augmented\(.*\)\.json/\1/p')
     local dataset_name="movieKnowledgeGraphDataset${suffix}"
     
+    echo "Running ablation for Model: $model, Shot: $shot on GPU: $gpu_id"
+    echo "Input File: $json_file"
+    
+    # 1. Run createMovieKGData.py from data folder
+    if [ -f "data/${dataset_name}.json" ]; then
+        echo "Data creation skipped (found data/${dataset_name}.json)"
+    else
+        # Pass relative path from data/ folder (../data/extractedTriples/...)
+        cd data
+        CUDA_VISIBLE_DEVICES=$gpu_id python createMovieKGData.py --extracted_triples "../$json_file" > "../logs/create_data_${folder_name}_${shot}shot.log" 2>&1
+        cd ..
+    fi
+    
     # 2. Run train_federated.py
     # Pass base_config.yaml, model.name, dataset.name
     local train_log="logs/train_${folder_name}_${shot}shot.log"
-    CUDA_VISIBLE_DEVICES=$gpu_id python train_federated.py \
-        --cfg base_config.yaml \
-        model.name="$model" \
-        dataset.name="$dataset_name" \
-        > "$train_log" 2>&1
-        
-    # Extract the save path from the log
-    local save_path=$(grep "Final model available at: " "$train_log" | awk '{print $NF}')
+    local save_path=""
+
+    if [ -f "$train_log" ]; then
+        save_path=$(grep "Final model available at: " "$train_log" | awk '{print $NF}')
+    fi
+
+    if [ -n "$save_path" ] && [ -d "$save_path" ]; then
+        echo "Training skipped (found model at $save_path)"
+    else
+        CUDA_VISIBLE_DEVICES=$gpu_id python train_federated.py \
+            --cfg base_config.yaml \
+            model.name="$model" \
+            dataset.name="$dataset_name" \
+            > "$train_log" 2>&1
+            
+        # Extract the save path from the log
+        save_path=$(grep "Final model available at: " "$train_log" | awk '{print $NF}')
+    fi
     
     if [ -z "$save_path" ]; then
         echo "Training failed for $model $shot shot. See $train_log"
@@ -90,22 +104,36 @@ run_ablation() {
     local lora_path="${save_path}/peft-128"
     
     # 3. Run test.py
-    CUDA_VISIBLE_DEVICES=$gpu_id python test.py \
-        --base_model_path "$model" \
-        --lora_path "$lora_path" \
-        > "logs/test_${folder_name}_${shot}shot.log" 2>&1
+    local test_log="logs/test_${folder_name}_${shot}shot.log"
+    if [ -f "$test_log" ] && grep -q "EVALUATION RESULTS" "$test_log"; then
+        echo "Testing skipped (found results in $test_log)"
+    else
+        CUDA_VISIBLE_DEVICES=$gpu_id python test.py \
+            --base_model_path "$model" \
+            --lora_path "$lora_path" \
+            > "$test_log" 2>&1
+    fi
         
     echo "Completed ablation for Model: $model, Shot: $shot"
 }
 
-# Initialize semaphore for 2 GPUs
+# Initialize semaphore for available GPUs
 PIPE_FILE=$(mktemp -u)
 mkfifo "$PIPE_FILE"
 exec 3<>"$PIPE_FILE"
 rm "$PIPE_FILE"
 
-echo "0" >&3
-echo "1" >&3
+# Detect number of GPUs
+if command -v nvidia-smi &> /dev/null; then
+    NUM_GPUS=$(nvidia-smi -L | wc -l)
+else
+    NUM_GPUS=1
+fi
+[ "$NUM_GPUS" -eq 0 ] && NUM_GPUS=1
+
+for ((i=0; i<NUM_GPUS; i++)); do
+    echo "$i" >&3
+done
 
 # Main loop
 for shot in "${SHOTS[@]}"; do
