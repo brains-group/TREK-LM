@@ -15,13 +15,13 @@ huggingface-cli login --token "$HF_TOKEN"
 # Qwen3 models: 0.6B, 1.7B, 4B, 8B
 # Gemma-3 models: 1B, 4B, 12B
 MODELS=(
-    "Qwen/Qwen3-0.6B"
+    # "Qwen/Qwen3-0.6B"
     "Qwen/Qwen3-1.7B"
     "Qwen/Qwen3-4B"
     "Qwen/Qwen3-8B"
-    "google/gemma-3-1b-it"
-    "google/gemma-3-4b-it"
-    "google/gemma-3-12b-it"
+    # "google/gemma-3-1b-it"
+    # "google/gemma-3-4b-it"
+    # "google/gemma-3-12b-it"
 )
 
 # Define shots order: 5, 0, 1, 3, 10
@@ -48,7 +48,7 @@ run_ablation() {
     
     # Find the input JSON file
     local search_path="./data/extractedTriples/${folder_name}"
-    local json_file=$(find "$search_path" -name "*augmented*${shot}shots.json" | head -n 1)
+    local json_file=$(find "$search_path" -name "*augmented*[!0-9]${shot}shots.json" | head -n 1)
     
     if [ -z "$json_file" ]; then
         echo "Error: JSON file not found for Model: $model, Shot: $shot"
