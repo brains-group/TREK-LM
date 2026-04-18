@@ -64,7 +64,7 @@ For the [Food.com](https://www.kaggle.com/datasets/shuyangli94/food-com-recipes-
 
 ## Citation
 
-If you use this code or the associated research in your work, please cite our paper:
+If you use this code or the associated research in your work, please cite our [paper](https://arxiv.org/abs/2603.13264):
 
 ```bibtex
 @inproceedings{spadea2026federated,
