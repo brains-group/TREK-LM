@@ -61,3 +61,15 @@ The local model training ablation test for the federated model can be done simpl
 The external dataset used in this repo is [ReDial](https://huggingface.co/datasets/community-datasets/re_dial), but it doesn't need to be manually downloaded. The `createMovieKGData.py` code automatically pulls ReDial from HuggingFace.
 
 For the [Food.com](https://www.kaggle.com/datasets/shuyangli94/food-com-recipes-and-user-interactions) dataset, it is also automatically downloaded by the code.
+
+## Citation
+
+If you use this code or the associated research in your work, please cite our paper:
+
+```bibtex
+@inproceedings{spadea2026federated,
+  author = {Spadea, Fernando and Seneviratne, Oshani},
+  title = {Federated Personal Knowledge Graph Completion with Lightweight Large Language Models for Personalized Recommendations},
+  year = {2026},
+  booktitle = {Proceedings of the European Semantic Web Conference},
+}
