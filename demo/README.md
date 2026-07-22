@@ -17,9 +17,12 @@ behavior matches the reported evaluation exactly.
    animation, horror, romantic comedy, classic drama) are provided in
    `pkg_library.py`. Each is serialized to the same JSON-LD system prompt used in
    training (`utils/kg_creation.py`).
-2. **Ask for a recommendation.** Enter a request (or use the default) and the
-   federated, KTO-fine-tuned lightweight LLM reasons over the PKG.
-3. **Inspect the result.** The app shows the parsed recommendation list, the full
+2. **(Optional) Evolve the PKG.** Add a new liked or disliked movie to simulate
+   the PKG growing as the user interacts, then re-run to see how the
+   recommendation changes. "Reset PKG" restores the original profile.
+3. **Ask for a recommendation.** Enter a request (or use the default) and the
+   federated, KTO-fine-tuned lightweight LLM reasons over the current PKG.
+4. **Inspect the result.** The app shows the parsed recommendation list, the full
    model response, and the raw JSON-LD PKG that conditioned the model.
 
 ## Setup

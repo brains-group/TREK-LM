@@ -2,9 +2,11 @@
 Interactive Gradio demo for FedTREK-LM.
 
 The user picks one of several Personal Knowledge Graphs (PKGs), each capturing a
-distinct movie taste profile, optionally edits the request, and asks the
-federated, KTO-fine-tuned lightweight LLM for a movie recommendation. The demo
-shows both the PKG that conditions the model and the recommendation it produces.
+distinct movie taste profile, optionally *evolves* the PKG by adding new liked or
+disliked movies, and asks the federated, KTO-fine-tuned lightweight LLM for a
+movie recommendation. The demo shows both the PKG that conditions the model and
+the recommendation it produces, and lets the user watch the recommendation change
+as the PKG grows.
 
 Usage:
     python demo/app.py --lora_path /path/to/federated/adapter \
@@ -26,7 +28,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import gradio as gr
 
-from demo.pkg_library import PKG_LIBRARY, build_system_prompt, list_profiles
+from demo.pkg_library import (
+    PKG_LIBRARY,
+    build_system_prompt,
+    list_profiles,
+    clone_profile,
+    add_preference,
+)
 from demo.recommender import Recommender
 from utils import constants as C
 
@@ -59,16 +67,43 @@ def pretty_jsonld(profile):
 
 def build_ui(recommender):
     """Constructs the Gradio Blocks interface bound to a loaded recommender."""
-    keys = [k for k, _ in list_profiles()]
-    default_key = keys[0]
+    default_key = list_profiles()[0][0]
     choices = [(name, key) for key, name in list_profiles()]
 
     def on_select(profile_key):
-        profile = PKG_LIBRARY[profile_key]
-        return format_pkg_markdown(profile), pretty_jsonld(profile)
+        """Load (reset to) the chosen library PKG."""
+        profile = clone_profile(profile_key)
+        return (
+            profile,
+            format_pkg_markdown(profile),
+            pretty_jsonld(profile),
+            f"Loaded the '{profile['name']}' PKG.",
+        )
 
-    def on_recommend(profile_key, user_request):
-        profile = PKG_LIBRARY[profile_key]
+    def on_add(profile, movie, relation):
+        """Evolve the current PKG by adding a liked/disliked movie."""
+        profile, message = add_preference(profile, movie, relation)
+        return (
+            profile,
+            format_pkg_markdown(profile),
+            pretty_jsonld(profile),
+            message,
+            "",  # clear the movie textbox
+        )
+
+    def on_reset(profile):
+        """Restore the current PKG to its original library state."""
+        key = profile.get("_key", default_key)
+        profile = clone_profile(key)
+        return (
+            profile,
+            format_pkg_markdown(profile),
+            pretty_jsonld(profile),
+            "Reverted the PKG to its original state.",
+        )
+
+    def on_recommend(profile, user_request):
+        """Generate a recommendation for the current (possibly evolved) PKG."""
         system_prompt = build_system_prompt(profile)
         result = recommender.recommend(system_prompt, user_request)
         if result["recommendations"]:
@@ -81,11 +116,15 @@ def build_ui(recommender):
         gr.Markdown(
             "# FedTREK-LM: Personalized Movie Recommendations over Personal "
             "Knowledge Graphs\n"
-            "Pick a Personal Knowledge Graph (PKG), then ask the federated, "
-            "KTO-fine-tuned lightweight LLM for a movie recommendation. The model "
-            "reasons over the structured PKG to suggest movies the user has not "
-            "already seen."
+            "Pick a Personal Knowledge Graph (PKG), optionally **evolve** it by "
+            "adding new preferences, then ask the federated, KTO-fine-tuned "
+            "lightweight LLM for a movie recommendation. The model reasons over "
+            "the structured PKG to suggest movies the user has not already seen."
         )
+
+        # Holds the current, possibly-evolved PKG for the session.
+        profile_state = gr.State(clone_profile(default_key))
+
         with gr.Row():
             with gr.Column(scale=1):
                 selector = gr.Dropdown(
@@ -102,6 +141,24 @@ def build_ui(recommender):
                         language="json",
                         label="PKG (JSON-LD)",
                     )
+                with gr.Accordion("Evolve this PKG", open=True):
+                    gr.Markdown(
+                        "Add a new preference to simulate the PKG evolving as the "
+                        "user interacts, then re-run to see how the recommendation "
+                        "changes."
+                    )
+                    movie_box = gr.Textbox(
+                        label="Movie title (e.g., Dune (2021))", lines=1
+                    )
+                    relation_radio = gr.Radio(
+                        choices=[C.LIKED_STRING, C.DISLIKED_STRING],
+                        value=C.LIKED_STRING,
+                        label="Add as",
+                    )
+                    with gr.Row():
+                        add_btn = gr.Button("Add to PKG")
+                        reset_btn = gr.Button("Reset PKG")
+                    evolve_status = gr.Markdown("")
             with gr.Column(scale=1):
                 request_box = gr.Textbox(
                     value=C.REQUEST_STRING,
@@ -113,10 +170,24 @@ def build_ui(recommender):
                 with gr.Accordion("Full model response", open=False):
                     raw_view = gr.Textbox(label="Model output", lines=6)
 
-        selector.change(on_select, inputs=selector, outputs=[pkg_view, jsonld_view])
+        selector.change(
+            on_select,
+            inputs=selector,
+            outputs=[profile_state, pkg_view, jsonld_view, evolve_status],
+        )
+        add_btn.click(
+            on_add,
+            inputs=[profile_state, movie_box, relation_radio],
+            outputs=[profile_state, pkg_view, jsonld_view, evolve_status, movie_box],
+        )
+        reset_btn.click(
+            on_reset,
+            inputs=profile_state,
+            outputs=[profile_state, pkg_view, jsonld_view, evolve_status],
+        )
         run_btn.click(
             on_recommend,
-            inputs=[selector, request_box],
+            inputs=[profile_state, request_box],
             outputs=[recs_view, raw_view],
         )
 

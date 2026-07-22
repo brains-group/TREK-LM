@@ -9,6 +9,8 @@ used to train and evaluate the model (see ``utils/kg_creation.py`` and
 from those used in the original ESWC paper.
 """
 
+import copy
+
 from rdflib import Graph, Literal
 from rdflib.namespace import RDF, RDFS
 
@@ -167,3 +169,39 @@ def get_profile(key):
 def list_profiles():
     """Returns ``(key, display_name)`` pairs for populating a selector."""
     return [(key, prof["name"]) for key, prof in PKG_LIBRARY.items()]
+
+
+def clone_profile(key):
+    """Returns a fresh, mutable copy of a library profile, tagged with its key.
+
+    The copy is what the demo mutates as the user grows (evolves) the PKG, so the
+    original library entry is never modified and can always be restored.
+    """
+    profile = copy.deepcopy(PKG_LIBRARY[key])
+    profile["_key"] = key
+    return profile
+
+
+def add_preference(profile, movie_name, relation):
+    """Adds a movie to a profile's ``liked`` or ``disliked`` list in place.
+
+    Simulates the PKG evolving as the user expresses a new preference. Returns
+    ``(profile, message)``. A movie already present under the same relation is a
+    no-op; a movie present under the opposite relation is moved.
+    """
+    movie_name = (movie_name or "").strip()
+    if not movie_name:
+        return profile, "Enter a movie title to add."
+    if relation not in (C.LIKED_STRING, C.DISLIKED_STRING):
+        relation = C.LIKED_STRING
+    other = C.DISLIKED_STRING if relation == C.LIKED_STRING else C.LIKED_STRING
+
+    profile.setdefault(C.LIKED_STRING, [])
+    profile.setdefault(C.DISLIKED_STRING, [])
+
+    if movie_name in profile[relation]:
+        return profile, f"'{movie_name}' is already {relation}."
+    if movie_name in profile[other]:
+        profile[other].remove(movie_name)
+    profile[relation].append(movie_name)
+    return profile, f"Added '{movie_name}' as {relation}. The PKG has evolved."
